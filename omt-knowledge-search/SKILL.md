@@ -64,7 +64,7 @@ Query "error api" → Match found in title AND summary.
 
 List all `.md` files in `.memo/` folders:
 ```bash
-find .memo/ -name "*.md" -not -name "_scratch.md" -not -name "INDEX.md"
+find .memo/ -name "*.md" -not -name "INDEX.md"
 ```
 
 Grep filenames for keywords:

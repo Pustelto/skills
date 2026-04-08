@@ -2,29 +2,54 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TEMPLATES_DIR="$ROOT_DIR/_templates"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILLS_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_STATUS="pending"
 DEFAULT_JIRA_ID="NO-TICKET"
+
+resolve_vault_dir() {
+  if [[ -n "${OMT_VAULT_DIR:-}" ]]; then
+    printf '%s' "$OMT_VAULT_DIR"
+  elif [[ -f "$HOME/.omt.config" ]]; then
+    head -1 "$HOME/.omt.config"
+  else
+    printf '%s' "$HOME/omt-tasks"
+  fi
+}
+
+resolve_templates_dir() {
+  local vault_dir="$1"
+  if [[ -d "$vault_dir/_templates" ]]; then
+    printf '%s' "$vault_dir/_templates"
+  else
+    printf '%s' "$SKILLS_REPO_DIR/templates"
+  fi
+}
 
 usage() {
   cat <<'EOF'
 Usage:
-  bin/bootstrap-task [feature-name] [options]
+  bootstrap-task [feature-name] [options]
 
 Options:
-  --name VALUE       Feature name or slug. If omitted, prompt interactively.
-  --jira VALUE       Jira ID, ticket label, or NO-TICKET. Default: NO-TICKET
-  --status VALUE     pending | in-progress | done. Default: pending
-  --all-files        Create prd.md, tech-spec.md, tasks.md, implementation.md
-  --no-context       Skip .omt-context creation prompt
-  --dry-run          Print the target folder and files without writing anything
-  -h, --help         Show this help
+  --name VALUE           Feature name or slug. If omitted, prompt interactively.
+  --jira VALUE           Jira ID, ticket label, or NO-TICKET. Default: NO-TICKET
+  --status VALUE         pending | in-progress | done. Default: pending
+  --all-files            Create prd.md, tech-spec.md, tasks.md, implementation.md
+  --vault-dir PATH       Override tasks vault directory
+  --templates-dir PATH   Override templates directory
+  --no-context           Skip .omt-context creation prompt
+  --dry-run              Print the target folder and files without writing anything
+  -h, --help             Show this help
+
+Path resolution:
+  Vault:     --vault-dir flag > $OMT_VAULT_DIR env > $HOME/.omt.config > $HOME/omt-tasks
+  Templates: --templates-dir flag > <vault>/_templates/ > <skills-repo>/templates/
 
 Examples:
-  bin/bootstrap-task bulk-role-editor --jira ONE-12345
-  bin/bootstrap-task "dtf local dev stack" --jira NO-TICKET --all-files
-  bin/bootstrap-task --status in-progress
+  bootstrap-task bulk-role-editor --jira ONE-12345
+  bootstrap-task "dtf local dev stack" --jira NO-TICKET --all-files
+  bootstrap-task --status in-progress
 EOF
 }
 
@@ -116,6 +141,11 @@ render_template() {
   local template_name="$1"
   local destination="$2"
 
+  if [[ ! -f "$TEMPLATES_DIR/$template_name" ]]; then
+    printf 'Template not found: %s/%s\n' "$TEMPLATES_DIR" "$template_name" >&2
+    exit 1
+  fi
+
   FEATURE_NAME="$FEATURE_TITLE" \
   JIRA_ID="$JIRA_ID" \
   STATUS="$STATUS" \
@@ -135,6 +165,8 @@ CREATE_ALL_FILES="false"
 DRY_RUN="false"
 CREATE_ALL_FILES_SET=""
 NO_CONTEXT="false"
+VAULT_DIR_OVERRIDE=""
+TEMPLATES_DIR_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -154,6 +186,14 @@ while [[ $# -gt 0 ]]; do
       CREATE_ALL_FILES="true"
       CREATE_ALL_FILES_SET="true"
       shift
+      ;;
+    --vault-dir)
+      VAULT_DIR_OVERRIDE="${2-}"
+      shift 2
+      ;;
+    --templates-dir)
+      TEMPLATES_DIR_OVERRIDE="${2-}"
+      shift 2
       ;;
     --no-context)
       NO_CONTEXT="true"
@@ -184,6 +224,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+VAULT_DIR="${VAULT_DIR_OVERRIDE:-$(resolve_vault_dir)}"
+TEMPLATES_DIR="${TEMPLATES_DIR_OVERRIDE:-$(resolve_templates_dir "$VAULT_DIR")}"
+
+if [[ ! -d "$VAULT_DIR" ]]; then
+  printf 'Tasks vault does not exist: %s\n' "$VAULT_DIR" >&2
+  printf 'Run bin/setup first, or create it manually.\n' >&2
+  exit 1
+fi
 
 FEATURE_INPUT="$(prompt_if_empty "Feature name" "" "$FEATURE_INPUT")"
 JIRA_ID="$(prompt_if_empty "Jira ID" "$DEFAULT_JIRA_ID" "$JIRA_ID")"
@@ -223,7 +272,7 @@ fi
 
 FEATURE_TITLE="$(title_case "$FEATURE_INPUT")"
 CREATED_AT="$(date +%F)"
-TARGET_DIR="$ROOT_DIR/$STATUS-$JIRA_ID-$FEATURE_SLUG"
+TARGET_DIR="$VAULT_DIR/$STATUS-$JIRA_ID-$FEATURE_SLUG"
 
 FILES=("prd.md")
 if [[ "$CREATE_ALL_FILES" == "true" ]]; then
@@ -235,7 +284,9 @@ if [[ -e "$TARGET_DIR" ]]; then
   exit 1
 fi
 
-printf 'Target: %s\n' "$TARGET_DIR"
+printf 'Vault:     %s\n' "$VAULT_DIR"
+printf 'Templates: %s\n' "$TEMPLATES_DIR"
+printf 'Target:    %s\n' "$TARGET_DIR"
 printf 'Files:\n'
 for file in "${FILES[@]}"; do
   printf '  - %s\n' "$file"

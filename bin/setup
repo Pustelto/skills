@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILLS_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_FILE="$HOME/.omt.config"
+DEFAULT_VAULT="$HOME/omt-tasks"
+
+printf '=== OMT Skills Setup ===\n\n'
+
+# --- 1. Tasks vault ---
+
+VAULT_DIR="$DEFAULT_VAULT"
+if [[ -f "$CONFIG_FILE" ]]; then
+  EXISTING_VAULT="$(head -1 "$CONFIG_FILE")"
+  printf 'Existing config found: %s → %s\n' "$CONFIG_FILE" "$EXISTING_VAULT"
+  printf 'Keep this path? [Y/n]: ' >&2
+  read -r answer
+  answer="${answer:-Y}"
+  if [[ "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" == "y" || "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" == "yes" ]]; then
+    VAULT_DIR="$EXISTING_VAULT"
+  else
+    printf 'Tasks vault path [%s]: ' "$DEFAULT_VAULT" >&2
+    read -r answer
+    VAULT_DIR="${answer:-$DEFAULT_VAULT}"
+  fi
+else
+  printf 'Tasks vault path [%s]: ' "$DEFAULT_VAULT" >&2
+  read -r answer
+  VAULT_DIR="${answer:-$DEFAULT_VAULT}"
+fi
+
+# Expand ~ if present
+VAULT_DIR="${VAULT_DIR/#\~/$HOME}"
+
+printf '%s\n' "$VAULT_DIR" > "$CONFIG_FILE"
+printf 'Config written: %s → %s\n' "$CONFIG_FILE" "$VAULT_DIR"
+
+# --- 2. Create vault directory ---
+
+if [[ ! -d "$VAULT_DIR" ]]; then
+  mkdir -p "$VAULT_DIR"
+  printf 'Created vault: %s\n' "$VAULT_DIR"
+else
+  printf 'Vault exists:  %s\n' "$VAULT_DIR"
+fi
+
+# --- 3. Copy default templates ---
+
+if [[ ! -d "$VAULT_DIR/_templates" ]]; then
+  cp -r "$SKILLS_REPO_DIR/templates" "$VAULT_DIR/_templates"
+  printf 'Copied default templates to %s/_templates/\n' "$VAULT_DIR"
+else
+  printf 'Templates exist: %s/_templates/ (skipped)\n' "$VAULT_DIR"
+  printf '  To reset defaults: rm -rf "%s/_templates" && rerun setup\n' "$VAULT_DIR"
+fi
+
+# --- 4. Claude Code skill symlinks ---
+
+printf '\n--- Claude Code Integration ---\n'
+
+CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+
+printf 'Symlink skills to %s? [Y/n]: ' "$CLAUDE_SKILLS_DIR" >&2
+read -r answer
+answer="${answer:-Y}"
+
+if [[ "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" == "y" || "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" == "yes" ]]; then
+  mkdir -p "$CLAUDE_SKILLS_DIR"
+
+  LINKED=0
+  SKIPPED=0
+  for skill_dir in "$SKILLS_REPO_DIR"/*/; do
+    skill_name="$(basename "$skill_dir")"
+
+    # Skip non-skill directories
+    if [[ ! -f "$skill_dir/SKILL.md" ]]; then
+      continue
+    fi
+
+    target="$CLAUDE_SKILLS_DIR/$skill_name"
+    if [[ -L "$target" ]]; then
+      existing="$(readlink "$target")"
+      if [[ "$existing" == "$skill_dir" || "$existing" == "${skill_dir%/}" ]]; then
+        SKIPPED=$((SKIPPED + 1))
+        continue
+      fi
+      rm "$target"
+    elif [[ -e "$target" ]]; then
+      printf '  SKIP %s (exists, not a symlink)\n' "$skill_name"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
+
+    ln -s "${skill_dir%/}" "$target"
+    LINKED=$((LINKED + 1))
+  done
+
+  printf '  Linked: %d skills, Skipped: %d (already linked)\n' "$LINKED" "$SKIPPED"
+else
+  printf 'Skipped Claude Code integration.\n'
+  printf 'For other AI agents, point them at SKILL.md files in: %s\n' "$SKILLS_REPO_DIR"
+fi
+
+# --- Done ---
+
+printf '\n=== Setup Complete ===\n\n'
+printf 'Tasks vault:  %s\n' "$VAULT_DIR"
+printf 'Skills repo:  %s\n' "$SKILLS_REPO_DIR"
+printf 'Config:       %s\n' "$CONFIG_FILE"
+printf '\nNext steps:\n'
+printf '  1. In your project repo, run: /omt-scaffold-feature\n'
+printf '  2. Or directly: %s/bin/bootstrap-task --name "my feature"\n' "$SKILLS_REPO_DIR"
+printf '\nFor non-Claude agents, use the SKILL.md files as workflow instructions.\n'

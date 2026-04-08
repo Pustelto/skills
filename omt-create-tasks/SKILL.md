@@ -46,7 +46,9 @@ Extract key inputs:
 ### 4. Create Tasks File from Template
 
 If not existing:
-- Read from `/Users/tomas.pustelnik/Developer/tasks-vault/_templates/tasks.md`
+- Resolve template: `<tasks-vault>/_templates/tasks.md` if exists, otherwise `<skills-repo>/templates/tasks.md`
+  - Tasks vault path: `$HOME/.omt.config` (plain text, single line). Fallback: `$HOME/omt-tasks/`
+  - Skills repo path: derive from this SKILL.md file's location — go up one directory
 - Replace placeholders (`{{FEATURE_NAME}}`, `{{JIRA_ID}}`, `{{STATUS}}`, `{{DATE}}`)
 - Write `tasks.md` to feature folder
 

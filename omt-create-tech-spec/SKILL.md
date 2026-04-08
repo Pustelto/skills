@@ -29,7 +29,9 @@ Check for "Product Owner reviewed" in prd.md. If not approved, stop.
 ### 3. Create Tech-Spec from Template
 
 If not existing:
-- Read from `/Users/tomas.pustelnik/Developer/tasks-vault/_templates/tech-spec.md`
+- Resolve template: `<tasks-vault>/_templates/tech-spec.md` if exists, otherwise `<skills-repo>/templates/tech-spec.md`
+  - Tasks vault path: `$HOME/.omt.config` (plain text, single line). Fallback: `$HOME/omt-tasks/`
+  - Skills repo path: derive from this SKILL.md file's location — go up one directory
 - Replace placeholders (`{{FEATURE_NAME}}`, `{{JIRA_ID}}`, `{{STATUS}}`, `{{DATE}}`)
 - Write `tech-spec.md` to feature folder
 

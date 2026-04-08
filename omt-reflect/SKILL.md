@@ -1,13 +1,13 @@
 ---
 name: omt-reflect
-description: Migrate .memo/_scratch.md to organized notes at session end. Agent auto-decides placement (category + level) with reasoning. Updates INDEX.md. Clears scratch. Run after tasks done or session ending.
+description: Migrate _implementation.md to organized notes at session end. Agent auto-decides placement (category + level) with reasoning. Updates INDEX.md. Clears _implementation.md. Run after tasks done or session ending.
 ---
 
 # Reflect & Organize Knowledge
 
 ## Overview
 
-Read `.memo/_scratch.md`, organize entries into proper notes (standards, runbooks, architecture, refactoring), update INDEX.md, and clear scratch. This is the "Codify" step of compound engineering.
+Read `_implementation.md` (in repo root), organize entries into proper notes (standards, runbooks, architecture, refactoring), update INDEX.md, and clear it. This is the "Codify" step of compound engineering.
 
 **Agent auto-decides** where each note belongs and provides reasoning. Human reviews in PR.
 
@@ -15,13 +15,13 @@ Read `.memo/_scratch.md`, organize entries into proper notes (standards, runbook
 
 - **Full reflection:** All tasks in `tasks.md` done — feature complete
 - **Partial reflection:** Session ending mid-feature
-- **Anytime:** When scratch is getting long (20+ entries)
+- **Anytime:** When `_implementation.md` is getting long (20+ entries)
 
 ## Process
 
 ### 1. Read Scratch File
 
-Read `.memo/_scratch.md` — extract all timestamped entries.
+Read `_implementation.md` — extract all timestamped entries.
 
 ### 2. Read Existing Knowledge
 
@@ -34,7 +34,7 @@ This helps agent determine:
 
 ### 3. For Each Entry, Auto-Decide
 
-Agent decides for each scratch entry:
+Agent decides for each entry:
 
 **Category:**
 - **standard** — convention, pattern, rule to follow
@@ -84,7 +84,7 @@ For each decision:
 - Structure body: Problem/Context → Solution/Approach → Code References
 - Include diagrams (Mermaid, ASCII) if entry mentions flows
 - Generalize examples (avoid overly specific code)
-- Add file:line references from scratch entry
+- Add file:line references from entry
 
 **If UPDATE:**
 - Read existing note
@@ -137,10 +137,10 @@ Tag with source: `**From:** {{JIRA_ID}}`
 
 **Default:** Most learnings go to `.memo/` only, not CLAUDE.md. Keep CLAUDE.md lean.
 
-### 9. Clear Scratch
+### 9. Clear _implementation.md
 
 After successful migration:
-- Clear `.memo/_scratch.md` completely
+- Clear `_implementation.md` completely
 - Leave empty file for next session
 
 ### 10. Present Summary
@@ -165,7 +165,7 @@ Skipped 1 entry:
 - "Use Array.flatMap" — already documented in standards/array-methods.md
 
 Updated .memo/INDEX.md with summaries.
-Cleared .memo/_scratch.md for next session.
+Cleared _implementation.md for next session.
 
 Changes ready for commit.
 ```
@@ -275,7 +275,7 @@ Extract shared validation pipeline:
 
 If session ends before feature complete:
 
-1. Still migrate scratch → notes (don't lose learnings)
+1. Still migrate `_implementation.md` → notes (don't lose learnings)
 2. Don't update feature status (still in-progress)
 3. Add note to `tasks.md` or feature folder: "Session ended at task X.Y"
 
@@ -315,7 +315,7 @@ After reflection:
 - All notes have valid YAML frontmatter
 - All notes have file:line references
 - INDEX.md is valid markdown
-- Scratch is cleared
+- `_implementation.md` is cleared
 - No secrets in notes (grep check)
 
 ## Common Mistakes

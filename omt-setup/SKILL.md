@@ -26,7 +26,7 @@ This is a **one-time setup per repo** — run it once, then use `omt-seed` to po
   runbooks/                   # Empty, ready for notes
   architecture/               # Empty, ready for notes
   refactoring/                # Empty, ready for notes
-  _scratch.md                 # Empty scratch file
+  (no _scratch.md — _implementation.md lives in repo root, created by omt-scaffold-feature)
 ```
 
 Plus updates to `CLAUDE.md` explaining the system.
@@ -47,7 +47,6 @@ mkdir -p .memo/standards
 mkdir -p .memo/runbooks
 mkdir -p .memo/architecture
 mkdir -p .memo/refactoring
-touch .memo/_scratch.md
 ```
 
 ### 3. Create INDEX.md from Template
@@ -68,7 +67,7 @@ This project uses a compound memory system in `.memo/`:
 - **`.memo/runbooks/`** - Step-by-step procedures for common tasks
 - **`.memo/architecture/`** - System design docs with diagrams (Mermaid, ASCII)
 - **`.memo/refactoring/`** - Friction log documenting pain points and improvement ideas
-- **`.memo/_scratch.md`** - Quick session notes (migrated to proper notes during reflection)
+- **`_implementation.md`** - Quick session notes in repo root (migrated to proper notes during reflection, gitignored)
 
 ### For AI Agents
 
@@ -76,7 +75,7 @@ When planning work:
 1. Always read `.memo/INDEX.md` first to find relevant standards and past solutions
 2. Use `/omt-search <topic>` to find specific knowledge
 3. During work, capture learnings with `/omt-compound "quick note"`
-4. At session end, run `/omt-reflect` to migrate scratch notes to organized knowledge
+4. At session end, run `/omt-reflect` to migrate `_implementation.md` notes to organized knowledge
 
 The system is designed for progressive disclosure: INDEX.md → category folder → individual note → referenced code.
 ```
@@ -146,7 +145,7 @@ This ensures the root INDEX.md is always the single source of truth for all doma
 After creation, verify:
 - All folders exist
 - INDEX.md is valid markdown
-- _scratch.md is empty
+- `_implementation.md` exists in repo root (if created by scaffold)
 - CLAUDE.md updated (repo root only)
 
 ## Common Issues

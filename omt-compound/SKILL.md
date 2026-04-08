@@ -1,15 +1,13 @@
 ---
 name: omt-compound
-description: Quick capture learnings to .memo/_scratch.md during work. Auto-invoked by agents when discovering patterns, friction, or useful knowledge. Migrated to organized notes by omt-reflect.
+description: Quick capture learnings to _implementation.md during work. Auto-invoked by agents when discovering patterns, friction, or useful knowledge. Migrated to organized notes by omt-reflect.
 ---
 
 # Compound Quick Capture
 
 ## Overview
 
-Append learnings to `.memo/_scratch.md` during work sessions with zero friction. No YAML frontmatter, no organization decisions — just capture and move on.
-
-This **replaces implementation.md** from the old OMT workflow. Everything goes into scratch, then `omt-reflect` organizes it.
+Append learnings to `_implementation.md` (in repo root) during work sessions with zero friction. No YAML frontmatter, no organization decisions — just capture and move on. `omt-reflect` organizes it later.
 
 ## When to Use
 
@@ -120,10 +118,10 @@ See: src/api/handlers/user.ts:45-67
 ---
 ```
 
-### 3. Append to \_scratch.md
+### 3. Append to \_implementation.md
 
 ```bash
-# Read existing .memo/_scratch.md
+# Read existing _implementation.md
 # Append new entry
 # Save
 ```
@@ -135,7 +133,7 @@ See: src/api/handlers/user.ts:45-67
 Quick confirmation:
 
 ```
-✓ Added to scratch: "Error handling pattern discovered"
+✓ Added to _implementation.md: "Error handling pattern discovered"
 ```
 
 No ceremony. Back to work immediately.
@@ -313,7 +311,7 @@ Agent continues work...
 
 ### During Session
 
-`.memo/_scratch.md` grows with timestamped entries. This is fine — it's temporary.
+`_implementation.md` grows with timestamped entries. This is fine — it's temporary.
 
 ### At Session End
 
@@ -322,30 +320,30 @@ Agent continues work...
 1. Read all entries
 2. Organize into proper notes (standards/, runbooks/, etc.)
 3. Update INDEX.md
-4. Clear \_scratch.md
+4. Clear \_implementation.md
 
-So scratch is always cleaned up — never accumulates long-term.
+So the file is always cleaned up — never accumulates long-term.
 
 ## Multiple Sessions
 
 If session ends without reflection:
 
-- Scratch keeps growing
+- `_implementation.md` keeps growing
 - Next session continues appending
 - Eventually `/omt-reflect` processes ALL entries
 
-This is fine. Scratch can accumulate across sessions if needed.
+This is fine. It can accumulate across sessions if needed.
 
-## Scratch vs. Direct Notes
+## _implementation.md vs. Direct Notes
 
-| Use scratch (omt-compound)    | Use direct notes (omt-knowledge-update) |
-| ----------------------------- | --------------------------------------- |
-| During active work            | After work, manual maintenance          |
-| Quick capture, no thinking    | Deliberate documentation                |
-| Will be organized later       | Already organized                       |
-| Encouraged — captures context | Rare — only for corrections             |
+| Use _implementation.md (omt-compound) | Use direct notes (omt-knowledge-update) |
+| ------------------------------------- | --------------------------------------- |
+| During active work                    | After work, manual maintenance          |
+| Quick capture, no thinking            | Deliberate documentation                |
+| Will be organized later               | Already organized                       |
+| Encouraged — captures context         | Rare — only for corrections             |
 
-**Default to scratch.** It's faster and context gets preserved.
+**Default to _implementation.md.** It's faster and context gets preserved.
 
 ## For Non-OMT Workflows
 
@@ -355,7 +353,7 @@ This skill works outside OMT:
 - During any feature work
 - During code review
 
-Just capture to scratch, reflect later.
+Just capture to `_implementation.md`, reflect later.
 
 ## Common Patterns
 
@@ -388,6 +386,6 @@ None. Scratch is free-form. Validation happens during `omt-reflect`.
 
 ## Common Issues
 
-- **Scratch file huge** → Run `/omt-reflect` to migrate and clear
-- **Forgot to capture during work** → Manually add to scratch before reflect
+- **_implementation.md huge** → Run `/omt-reflect` to migrate and clear
+- **Forgot to capture during work** → Manually add to `_implementation.md` before reflect
 - **Agent over-capturing** → Fine, reflect will consolidate
