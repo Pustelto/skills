@@ -1,15 +1,35 @@
 ---
 name: tdd
-description: Test-driven development with red-green-refactor loop. Use when user wants to build any features or fix bugs, mentions "red-green-refactor", wants integration tests, or asks for test-first development.
+description: Test-driven development with red-green-refactor loop. Use when building any features or fixing bugs, mentions "red-green-refactor", wants integration tests, or asks for test-first development.
 ---
 
 # Test-Driven Development
 
 Write the test first. Watch it fail. Write minimal code to pass.
 
-## The Iron Law
+## The Test Value Principle
 
-> NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
+TDD is **extremely strongly recommended** — it is the default for all code changes. But every test must justify its existence by providing real value:
+
+> WRITE TESTS THAT PROTECT AGAINST REGRESSIONS AND SURVIVE REFACTORING.A TEST THAT DOES NEITHER IS WASTE — SKIP IT.
+
+**When to use TDD (strongly recommended — this is the default):**
+
+- Behavioral logic — conditionals, calculations, state machines, data transformations
+- Integration boundaries — how modules interact, API contracts, data flow across layers
+- User-facing behavior — what happens when a user clicks, submits, navigates
+- Complex wiring — anything where a mistake would silently produce wrong results
+
+**When TDD does NOT add value (skip it, but document why):**
+
+- Asserting type shapes the compiler already enforces (TypeScript interfaces, prop types)
+- Asserting static configuration that only changes intentionally (column IDs, route paths)
+- Pure prop-threading through thin wrappers/containers with zero logic
+- Mechanical renames propagated through a component tree where the type checker is the safety net
+
+When skipping TDD, state explicitly WHY in your task summary. The bar is: "Would this test catch a real bug that the compiler wouldn't?" If no → skip. If yes → TDD.
+
+For changes spanning multiple files as one logical change, prefer ONE integration test that verifies the end-to-end behavior over per-file unit tests that test wiring.
 
 ## PRIMARY RULES YOU MUST ALWAYS FOLLOW
 
@@ -17,10 +37,11 @@ Write the test first. Watch it fail. Write minimal code to pass.
 
 - Tests should verify behavior through public interfaces, not implementation details (treat testing module as blackbox). Code can change entirely; tests shouldn't.
 - If you didn't watch the test fail, you don't know if it tests the right thing.
-- Protection against regressions - test should fail when changing of the code cause regression
-- Resistance to refactoring - test should still work if we change the implementation of tested unit
-- Fast feedback - tests must be fast
-- Maintainability - tests must be easy to maintain
+- Protection against regressions — test should fail when changing of the code causes regression
+- Resistance to refactoring — test should still work if we change the implementation of tested unit
+- Fast feedback — tests must be fast
+- Maintainability — tests must be easy to maintain
+- **Value** — every test must provide protection the type system and compiler cannot
 
 **Good tests** are integration-style: they exercise real code paths through public APIs. They describe _what_ the system does, not _how_ it does it. A good test reads like a specification - "user can checkout with valid cart" tells you exactly what capability exists. These tests survive refactors because they don't care about internal structure.
 
@@ -121,11 +142,11 @@ After all tests pass, look for [refactor candidates](refactoring.md):
 
 ## Good Tests
 
-| Quality          | Good                                | Bad                                                 |
-| ---------------- | ----------------------------------- | --------------------------------------------------- |
-| **Minimal**      | One thing. "and" in name? Split it. | `test('validates email and domain and whitespace')` |
-| **Clear**        | Name describes behavior             | `test('test1')`                                     |
-| **Shows intent** | Demonstrates desired API            | Obscures what code should do                        |
+| Quality      | Good                                | Bad                                               |
+| ------------ | ----------------------------------- | ------------------------------------------------- |
+| Minimal      | One thing. "and" in name? Split it. | test('validates email and domain and whitespace') |
+| Clear        | Name describes behavior             | test('test1')                                     |
+| Shows intent | Demonstrates desired API            | Obscures what code should do                      |
 
 ## Why Order Matters
 
@@ -190,3 +211,4 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 [ ] Code is minimal for this test
 [ ] No speculative features added
 ```
+

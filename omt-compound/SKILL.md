@@ -1,13 +1,15 @@
 ---
 name: omt-compound
-description: Quick capture learnings to _implementation.md during work. Auto-invoked by agents when discovering patterns, friction, or useful knowledge. Migrated to organized notes by omt-reflect.
+description: Quick capture learnings to implementation.md during work which serves as a scratch pad. Auto-invoked by agents when discovering patterns, friction, or useful knowledge. Migrated to organized notes by omt-reflect.
 ---
 
 # Compound Quick Capture
 
 ## Overview
 
-Append learnings to `_implementation.md` (in repo root) during work sessions with zero friction. No YAML frontmatter, no organization decisions — just capture and move on. `omt-reflect` organizes it later.
+Append learnings to `implementation.md` during work sessions with zero friction. No YAML frontmatter, no organization decisions — just capture and move on.
+
+GOAL: Treat agentic development as a system. When we have issues (permissions, dev env, quality) we must improve the system, not correct agent. Goal of this skill is to record all possible improvements to the system and then turn those to the system improvements (via omt-reflect skill)
 
 ## When to Use
 
@@ -53,7 +55,8 @@ If invoked with no argument:
 1. Read current conversation
 2. Extract key learnings/patterns discussed:
    - Code patterns discovered
-   - Friction points encountered
+   - record any non-obvious information (anything you have to search across many files, or for a long time, or user has to correct you)
+   - Friction points encountered - for example: missing config, unclear instructions, etc.
    - Solutions that worked
    - Refactoring opportunities identified
      - THIS IS SUPER IMPORTANT: focus on suboptimal architecture and bad patterns, that make navigation in the codebase, maintenance or testing hard. Note those things and add a short suggestion/idea how to eventually solve it with software engineering best practices - we should accumulate this knowledge and use it later to run regular refactors
@@ -83,6 +86,8 @@ Agent: Extracted learning:
 **Auto-extraction rules:**
 
 - Only extract if something actionable was discovered/discussed
+- Prefer information that is reusable and generally applicable across entire codebase or at least across the library
+- Refactoring options are always good to capture
 - Include file references if code was read/modified
 - Summarize in 2-4 sentences max
 - If nothing clear to extract, ask user: "What should I capture?"
@@ -118,10 +123,10 @@ See: src/api/handlers/user.ts:45-67
 ---
 ```
 
-### 3. Append to \_implementation.md
+### 3. Append to implementation.md
 
 ```bash
-# Read existing _implementation.md
+# Read existing implementation.md
 # Append new entry
 # Save
 ```
@@ -311,7 +316,7 @@ Agent continues work...
 
 ### During Session
 
-`_implementation.md` grows with timestamped entries. This is fine — it's temporary.
+`implementation.md` grows with timestamped entries. This is fine — it's temporary.
 
 ### At Session End
 
@@ -320,7 +325,7 @@ Agent continues work...
 1. Read all entries
 2. Organize into proper notes (standards/, runbooks/, etc.)
 3. Update INDEX.md
-4. Clear \_implementation.md
+4. Clear implementation.md
 
 So the file is always cleaned up — never accumulates long-term.
 

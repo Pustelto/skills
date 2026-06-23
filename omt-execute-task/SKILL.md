@@ -2,6 +2,12 @@
 name: omt-execute-task
 description: Use when implementing a task. Step 4 of omt workflow — run after omt-create-tasks, loops until all tasks done, then omt-reflect
 allowed-tools: Read, Edit, Grep, Glob, Bash(pnpm:*), Bash(pnpm nx:*), Bash(nx:*), Bash(playwright-cli:*)
+hooks:
+  Stop:
+    - matcher: ""
+      hooks:
+        - type: command
+          command: "bash ~/.claude/scripts/omt-task-complete-gate.sh"
 ---
 
 # Execute Task
@@ -21,12 +27,14 @@ Execute ONE atomic task from `tasks.md` following a strict phased protocol. Task
 ## ALWAYS DO:
 
 - **Write simple, boring code.** Pure functions, composition, immutability. If it's clever, simplify it. Not many small boxes — few large modules with good interface APIs. Screaming architecture: the folder structure should scream the domain, not the framework.
-- Always run tests and other code quality tools before commit.
+- **TDD is extremely strongly recommended** for all behavioral changes. Use the /tdd skill for logic, state, data transformations, and integration boundaries. For mechanical changes (prop threading, type renames, config wiring) where the type system is already the safety net, TDD may be skipped — but you MUST document WHY in the task summary. When in doubt, write the test.
+- Always run tests and other code quality tools before commit. **No proof = no commit.** If you can't show evidence the task works, you don't commit.
 - Always check the task specification and acceptance criteria in tasks.md file before considering it done and make sure they are all met.
-- Always report finished task using correct template
+- Always report finished task using correct template — the summary template in Phase 4 is **mandatory**.
 - Create a new branch when starting to work on a new task
 - Always update tasks.md file with tasks status changes
 - Always write results to the project folder, see `Store Results` section below
+- **Commit after each task** — one completed task = one atomic commit with proof
 
 ## ASK FIRST:
 
@@ -46,7 +54,7 @@ Execute ONE atomic task from `tasks.md` following a strict phased protocol. Task
 
 ## Phase 0: Load Task Context
 
-**Do this FIRST, before anything else.**
+**Do this FIRST, before anything else. Build a complete mental model before touching any code.**
 
 1. **Find active task context** (in order):
    - `OMT_TASK_CONTEXT` env var → path to task folder
@@ -56,7 +64,10 @@ Execute ONE atomic task from `tasks.md` following a strict phased protocol. Task
    - `prd.md` — requirements and acceptance criteria
    - `tech-spec.md` — architecture, patterns, feature flags, interfaces
    - `tasks.md` — find the next unchecked task
-3. **Extract from tech-spec** (remember for all phases):
+   - `implementation.md` — past task learnings, decisions, and carryover issues
+3. **Review git history** — run `git log --oneline -20` to understand recent changes and what was done in previous tasks
+4. **Review last completed task** — read the most recent `results/task-*-summary.md` to understand what was done, what was learned, and any carryover issues
+5. **Extract from tech-spec** (remember for all phases):
    - Feature flags defined → you MUST use them
    - Architecture patterns / module boundaries → enforce them
    - Interfaces and contracts → implement against them
@@ -88,11 +99,26 @@ Update `tasks.md` — set the current task's status to **In progress** in the Ta
 5. **Walking skeleton:** If this is the first task in a group, establish the minimal end-to-end vertical path first. Wire the interfaces and data flow before filling in logic. Prove the skeleton works with a trivial implementation
 6. **Feature flags:** If tech-spec specifies FF for this feature, wrap ALL new behavior behind the flag from the start. Test both FF-on and FF-off states
 
-**Output:** Clear mental model of interfaces, boundaries, data flow, where your code fits, AND how you will test and prove it works.
+### Test Value Assessment
+
+Before planning tests, classify each file change:
+
+| Change Type                                       | TDD?    | Rationale                                               |
+| ------------------------------------------------- | ------- | ------------------------------------------------------- |
+| New logic / behavior / calculations               | **YES** | Logic can break silently, compiler won't catch it       |
+| Integration boundary / API contract               | **YES** | Contracts need runtime verification                     |
+| User-facing interaction (click, navigate, submit) | **YES** | Behavior must be proven end-to-end                      |
+| Prop threading / thin wrapper / container         | **NO**  | Type system enforces correctness                        |
+| Static config (column defs, route paths)          | **NO**  | Only changes intentionally, compiler catches mismatches |
+| Type / interface shape change                     | **NO**  | Compiler already guarantees this                        |
+
+For changes spanning multiple files as one logical change → write ONE integration test that verifies the end-to-end behavior, not per-file unit tests.
+
+**Output:** Clear mental model of interfaces, boundaries, data flow, where your code fits, AND how you will test and prove it works. For each area, state whether TDD applies and why.
 
 ## Phase 2: TDD Implementation
 
-Always use /tdd skill.
+Use /tdd skill when TDD applies (see Test Value Assessment above). If all changes are mechanical/type-only, skip to Phase 3.
 
 **The core loop. Vertical slices ONLY — NEVER horizontal layers.**
 
@@ -104,7 +130,7 @@ Always use /tdd skill.
 | GREEN    | Minimal impl | ONLY enough code to pass the test. No anticipation           |
 | REFACTOR | Clean up     | Extract duplication, deepen modules. Tests still green       |
 
-### TDD Rules (Non-Negotiable)
+### TDD Rules (When TDD Applies)
 
 - **One test at a time.** RED → GREEN → REFACTOR → next test. Never batch
 - **Vertical slices:** Each RED-GREEN-REFACTOR cycle delivers a working slice through the full feature depth. Never build an entire layer before moving to the next
@@ -112,6 +138,7 @@ Always use /tdd skill.
 - **Start from API/interface:** Write tests against the public contract defined in Phase 1. Implementation details come last
 - **Read existing tests** before writing new ones — follow established conventions
 - **Feature flags:** If FF is active, test both FF-on and FF-off code paths
+- **One integration test over many unit tests:** For changes spanning multiple files as one logical change, prefer one integration test that verifies the end-to-end behavior over per-file unit tests
 
 ### During Implementation — Record Refactoring Opportunities
 
@@ -162,14 +189,13 @@ Use `omt-review-with-codex` (preferred) or Claude self-review against PRD + tech
 
 ### Summary Template
 
-Present using EXACTLY this format:
+Once you finished all the work and all mandatory checks, reply EXACTLY in this format:
 
 ```
 # Task Summary: <task ID> - <one-line description>
 
 **Repo:** <repo name>
 **Branch:** <branch name>
-**Task folder:** <path to task folder>
 
 ## What Changed
 - <file>: <what and why>
@@ -179,7 +205,8 @@ Present using EXACTLY this format:
 
 ## Checks
 - Linting: <pass/fail + tool>
-- Tests: <X passed, Y failed + command>
+- Tests: <X passed, Y failed + command> OR <N/A — reason why tests don't add value beyond type system>
+- Nex tests: <number of new tests added in this task>
 - Self-review against PRD: <requirement → MET/UNMET for each>
 - Self-review against tech-spec: <pattern → FOLLOWED/DEVIATED + reason>
 - Code review: <Codex/Claude — findings found, fixes applied>
@@ -189,6 +216,10 @@ Present using EXACTLY this format:
 |-------------|--------|-------|
 | <from prd/tech-spec> | MET/UNMET/PARTIAL | <details> |
 
+## Deviations and changes from spec
+
+- describe what changes and why?
+
 ## Refactoring
 - Done in this MR: <small refactors performed>
 - Recorded for future: <large refactors captured to .memo>
@@ -197,9 +228,27 @@ Present using EXACTLY this format:
 <actual command + output — BIGGEST scope proof>
 <edge cases tested>
 <screenshots/videos if applicable>
+
+TASK: COMPLETE
 ```
 
 **IMPORTANT:** Proof of Work section goes at the VERY END to survive context compacting.
+
+### TASK: COMPLETE Signal
+
+**`TASK: COMPLETE` MUST appear at the very end of your output message, ONLY when:**
+
+- The entire task passed to this skill has been fully executed and finished
+- All acceptance criteria are met
+- Code quality tools have been run and passed (spotless/detekt, lint/type-check — whatever applies)
+- Code review has been performed (sub-agent review or self-review)
+- Proof of work exists (test output, quality check results, screenshots)
+- Summary has been written using the exact template above
+- Results have been stored and tasks.md updated
+
+**If the task is NOT complete** (blocked, partially done, needs user input), do NOT output `TASK: COMPLETE`. Instead, explain what remains.
+
+This signal is **mandatory** — every successful task execution ends with it. It is the machine-readable marker that the task is done.
 
 ### Store Results
 
@@ -219,24 +268,26 @@ State: "Next: Task X.Y ready" or "All tasks complete. Run `omt-reflect`."
 
 ## Commit & Branching
 
-- One task = one atomic commit with task ID in message
+- **Commit after each task** — one completed task = one atomic commit with task ID in message
+- **No proof = no commit.** If you can't show evidence the task works (test output, screenshots, passing quality checks), you do not commit
+- Run code quality tools (spotless, detekt, lint, type-check — whatever applies) before every commit
 - Keep MRs under ~1000 lines. If exceeded, split into stacked branches — each independently mergeable
 - Feature flags to hide unfinished UI/logic. Partially shipped code behind FF is fine
 
 ## Red Flags — STOP and Fix
 
-| Rationalization                      | Reality                                                                      |
-| ------------------------------------ | ---------------------------------------------------------------------------- |
-| "Too simple to test first"           | Simple code breaks. TDD takes 30 seconds                                     |
-| "Let me build the whole layer first" | Vertical slices. Always. Never horizontal layers                             |
-| "I'll figure out testing as I go"    | Plan test strategy BEFORE coding. What you test and how you prove it matters |
-| "I'll define the interface later"    | Interfaces first. Always                                                     |
-| "I'll add proof later"               | Later never comes. Prove it now                                              |
-| "Tests pass so it works"             | Tests passing ≠ feature working. Prove end-to-end                            |
-| "Review slows me down"               | Review catches bugs that slow you down more                                  |
-| "Small refactor can wait"            | If it's in your files and < 30 min, do it now                                |
-| "No need to check spec again"        | Self-verify against spec. Every single time                                  |
-| "Feature flag is overkill here"      | If tech-spec says FF, use FF. No exceptions                                  |
+| Rationalization                      | Reality                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| "Too simple to test first"           | If it has logic, test it. If it's pure wiring the compiler checks, skip it and document why |
+| "Let me build the whole layer first" | Vertical slices. Always. Never horizontal layers                                            |
+| "I'll figure out testing as I go"    | Plan test strategy BEFORE coding. What you test and how you prove it matters                |
+| "I'll define the interface later"    | Interfaces first. Always                                                                    |
+| "I'll add proof later"               | Later never comes. Prove it now                                                             |
+| "Tests pass so it works"             | Tests passing ≠ feature working. Prove end-to-end                                           |
+| "Review slows me down"               | Review catches bugs that slow you down more                                                 |
+| "Small refactor can wait"            | If it's in your files and < 30 min, do it now                                               |
+| "No need to check spec again"        | Self-verify against spec. Every single time                                                 |
+| "Feature flag is overkill here"      | If tech-spec says FF, use FF. No exceptions                                                 |
 
 ## Failure Handling
 

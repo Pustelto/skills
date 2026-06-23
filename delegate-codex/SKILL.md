@@ -63,16 +63,23 @@ DO:
 
 ### Step 4: Execute Codex
 
-Run Codex with your formulated task:
+**CRITICAL: Choose the correct mode based on what the user wants.**
 
+#### For IMPLEMENTATION (writing code):
 ```bash
 codex exec --full-auto "YOUR_TASK_WITH_CONTEXT_HERE" 2>&1
 ```
+`--full-auto` enables `--sandbox workspace-write` (can modify files) and `-a on-request` approval.
 
-The `--full-auto` flag enables:
+#### For REVIEW ONLY (reading and analyzing, no file changes):
+```bash
+codex exec -s read-only -o /tmp/codex-review-output.txt "YOUR_REVIEW_PROMPT" 2>&1
+```
+Then read `/tmp/codex-review-output.txt` for the structured review output.
 
-- `--sandbox workspace-write` - Can modify files in the workspace
-- `-a on-request` - Model decides when to ask for approval
+`-s read-only` prevents ALL file writes. The `-o` flag saves the final response to a file (useful since output can be large).
+
+**Always clarify with the user before choosing a mode.** When in doubt, use read-only. Implementation mode will modify files — only use it when explicitly requested.
 
 ### Step 5: Report Results
 

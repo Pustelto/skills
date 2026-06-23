@@ -1,6 +1,12 @@
 ---
 name: omt-fix-bug
 description: Use when fixing a bug from a Jira ticket or bug description. Alternative entry to omt workflow — condenses investigation, planning, and execution into one flow. Then omt-reflect.
+hooks:
+  Stop:
+    - matcher: ""
+      hooks:
+        - type: command
+          command: "bash ~/.claude/scripts/omt-task-complete-gate.sh"
 ---
 
 # Fix Bug

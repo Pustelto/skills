@@ -7,9 +7,7 @@ description: Use when tech-spec is approved and needs task breakdown into vertic
 
 ## Overview
 
-Takes an approved `tech-spec.md` and `prd.md`, creates `tasks.md` with **small, granular tasks** (max 20 min each, 1 task = 1 commit) following tracer-bullet and walking-skeleton approach. Tasks are grouped into MR-sized milestones that are independently mergeable. Requires explicit user approval before execution begins.
-
-**Cardinal rule:** Many small, easy-to-verify tasks > fewer large tasks. When in doubt, split further.
+Takes an approved `tech-spec.md` and `prd.md`, creates `tasks.md` with **small, granular tasks** following tracer-bullet and walking-skeleton approach. Tasks are grouped into MR-sized milestones that are independently mergeable. Requires explicit user approval before execution begins.
 
 ## When to Use
 
@@ -18,163 +16,318 @@ Takes an approved `tech-spec.md` and `prd.md`, creates `tasks.md` with **small, 
 - **Not** when tech-spec is incomplete — run `omt-create-tech-spec` first
 - **Not** for execution — run `omt-execute-task` after tasks are approved
 
-## Process
+## Key concepts
 
-### 1. Verify Tech-Spec Approved
+### Tracing bullet
 
-Check for "Architecture approved" in tech-spec.md. If not approved, stop.
+Tracer bullet programming is a software development technique, introduced in The Pragmatic Programmer, where developers build a "skeletally thin" end-to-end slice of functionality to test architectural assumptions immediately. Unlike prototypes, tracer code is not intended to be thrown away; it is lean but permanent, allowing early integration, feedback, and validation of workflows.
 
-### 2. Locate Feature Folder
+#### Core Concepts of Tracer Bullets:
+
+- Definition: Developing a direct, minimal path from the user interface through to the database to ensure the architecture holds up.
+- Purpose: To gain immediate feedback on whether the code is hitting the intended "target" in terms of functionality and architecture.
+- "Not Disposable": Unlike prototyping, which focuses on gathering intelligence (and is often thrown away), tracer code is designed to be part of the final application. Each subsequent task extends the skeleton.
+
+#### Benefits of Tracer Bullet Development
+
+- Early Feedback: Users see functionality early, and developers see how components interact immediately.
+- Reduced Risk: Identifies architectural issues early, making it easier to adjust aim when the codebase is small.
+- Reduced Bottlenecks: Enables development teams to move quickly without waiting for full specifications.
+- Maintains Momentum: Provides a tangible "win" early in the development cycle.
+
+### Learning tests
+
+A "learning test" is a software development pattern where a developer writes automated tests to understand and explore a new API, library, or framework, rather than to test their own code. It acts as an executable documentation that verifies external code behaves as expected before integrating it into a larger project.
+
+#### Key Aspects of Learning Tests
+
+- Purpose: To gain understanding (learning) of unfamiliar software and confirm its behavior through experimentation.
+- Process: Instead of reading documentation, you write tests that "poke and prod" the new tool.
+- Benefits:
+  - Validated Knowledge: Ensures you understand the API correctly.
+  - Future Compatibility: If the library updates, your learning tests will fail, alerting you to changes.
+  - Safety Net: Provides confidence when integrating new, complex dependencies.
+- Example: When learning a new library to read JSON, you write a test creating a sample JSON string and assertion to verify it parses correctly.
+
+#### Learning Tests vs. Unit Tests
+
+While learning tests use the same tools as unit tests (e.g., JUnit, PyTest), their focus is on exploring external code, not validating internal code. They are usually not intented to be run in CI or used long-term.
+
+#### Origin
+
+The concept was popularized by Kent Beck in Test-Driven Development: By Example as part of the "Red bar patterns" to learn new technologies efficiently.
+
+## Process to follow
+
+1. Verify you have enough context and information to split the given task/feature to small units. If not ask user to do a refinement first
+2. Check for "Architecture approved" in tech-spec.md. If not approved, stop.
+
+### 3. Locate Feature Folder
 
 Find the feature folder (in order):
+
 1. `OMT_TASK_CONTEXT` env var → path to task folder
 2. `.omt-context` file in repo root → read path from it
 3. Ask user
 
-### 3. Load Context
+### 4. Load Context
 
 Read from feature folder:
+
 - `prd.md` — requirements, acceptance criteria, scope
 - `tech-spec.md` — architecture, interfaces, phases, feature flags
 
 Extract key inputs:
+
 - **Interfaces/contracts** from tech-spec (tasks implement these)
 - **Phases** from implementation plan (map to milestones)
 - **Feature flags** (tasks wire these from T1)
 - **Module boundaries** (tasks respect these)
+- **Acceptance criteria**
 
-### 4. Create Tasks File from Template
-
-If not existing:
-- Resolve template: `<tasks-vault>/_templates/tasks.md` if exists, otherwise `<skills-repo>/templates/tasks.md`
-  - Tasks vault path: `$HOME/.omt.config` (plain text, single line). Fallback: `$HOME/omt-tasks/`
-  - Skills repo path: derive from this SKILL.md file's location — go up one directory
-- Replace placeholders (`{{FEATURE_NAME}}`, `{{JIRA_ID}}`, `{{STATUS}}`, `{{DATE}}`)
-- Write `tasks.md` to feature folder
+**Scope rule:** the work in `tasks.md` covers exactly what's in the PRD's acceptance criteria — no more, no less. There is no "v1 / v2 / quality phase" framing imposed by this skill. If something isn't required by the PRD, it doesn't appear in tasks. If a future iteration is needed, that's a separate PRD with its own task breakdown. Tasks-grouped-into-milestones is the only structure.
 
 ### 5. Design Task Breakdown
 
-Apply these principles in order:
+Apply these principles in order. Principles 0 (risk-first ordering) and A–B (spikes, tracer bullets) define **what each milestone is for**; principles C onward define **how each milestone is sliced**.
 
-#### 5a. Tracer Bullet First (T1 is ALWAYS this)
+#### 0. Order milestones by risk, not by build-up. Integrations are usually the risk.
 
-The very first task is a **tiny end-to-end slice** that proves the architecture:
-- Wires the full vertical path: entry point → through all layers → output
-- Uses hardcoded/trivial implementation behind the interfaces defined in tech-spec
-- Deploys behind a feature flag
-- Result: a working skeleton you can demo, even if it does almost nothing
+The single most important question at task-creation time: **what does this plan assume but not yet prove?** The early milestones exist to retire those assumptions. Every project has a build-up reflex — "first the foundation, then the walls, then the roof." That reflex is wrong when the foundation is well-trodden ground and the roof is the unknown. **Risk lives where uncertainty is highest, not where the dependency tree starts.** Schedule risk-first.
 
-Example: "Wire API endpoint → service → repository → DB query → response. Hardcoded filter, single field. Behind FF. Proves the data flow works."
+##### The practical heuristic: integrations are the risk
 
-#### 5b. Task Sizing — 20 Minutes Max
+Don't run an elaborate risk inventory by default. The shortcut that catches most projects:
 
-**Each task MUST be completable in ≤20 minutes** (including tests). This is the single most important constraint.
+- **Integration with another system** (a service, a library you don't control, an external API, an auth provider, a database, a queue) — **high-risk**. This is where roadblocks live. Schedule first.
+- **Infrastructure or dev tooling** (Docker, CI, deploy targets, environment-specific config like Spring profiles, secrets) — **high-risk**. Schedule first.
+- **Feature implementation inside a single system** (UI flows, business logic, internal state, validation, formatting) — **usually low-risk**. Schedule after the integration unknowns are retired.
+
+The exceptions to "feature implementation is low-risk" are real but rare: genuinely novel algorithms, hard performance constraints, unfamiliar UX patterns. Flag those explicitly when they appear; default-treat feature work as the cheap part.
+
+When you see a milestone planning chart, ask: **how many integration boundaries does this milestone cross?** If the answer is "one or more, and at least one of those is new to the team or the project," that milestone is high-risk and belongs early. If the answer is "zero — it's all internal feature work," it can wait.
+
+##### When you need a more careful inventory
+
+The integration-first heuristic is enough most of the time. Use the explicit hypothesis-scoring fallback when:
+
+- Two or more milestones each cross multiple integration boundaries — you need to choose which goes first.
+- A milestone has no obvious integration boundary but still feels risky (novel algorithm, performance constraint, unproven UX assumption).
+- Stakeholders disagree about ordering and you need an artifact to compare against.
+
+The fallback method, in three steps:
+
+1. **List each hypothesis** the plan assumes but doesn't prove. One line per hypothesis.
+2. **Score each by `uncertainty × cost-of-being-wrong`.** Uncertainty = how confident is the team this works? (1 = trodden ground; 5 = genuinely unknown). Cost = how much rework if wrong? (1 = small refactor; 5 = invalidates the architecture).
+3. **Order milestones to retire the high × high hypotheses first.** Each later milestone takes a known-working slice and extends it.
+
+##### Distinguishing "biggest unknown" from "biggest scope"
+
+Build-up scheduling sequences by **dependency** (what depends on what). Risk-first sequences by **uncertainty** (what's unknown). They're different axes. Volume of scaffolding is not the same as risk. Scaffolding is rarely the riskiest part of a project — it's just the most visible. The riskiest part is usually the integration where the system meets reality (auth, network, an external API, a real user flow).
+
+##### Concrete worked example — `mmm-clone` got this wrong, here's the fix
+
+The `mmm-clone` project's original milestones were:
+
+- M1: First authenticated `getRule` test against live MMM
+- M2: Show one captured rule via the clone end-to-end (in-process tests)
+- M3: Serve all 3 queries from real captures
+- M4: Connect local DMM and FE to the clone
+- M5+: Assignments, evaluation, real filters
+
+This is build-up. M1 attacked one real unknown (live-MMM contract + auth) but a co-equal unknown — **"can DMM with `LOCAL_DQ` profile reach an HTTP service we control?"** — was deferred to M4. By M4, three milestones of work were committed on the assumption that the local-dev integration would work. When M4 ran, three independent failures fired simultaneously: (a) a stale Docker image silently served outdated stubs, (b) DMM's `K8sTokenAuthenticationStrategy` couldn't read `/var/run/secrets/kubernetes.io/serviceaccount/token` on macOS, (c) Spring profile property overrides for the TCS-mock URL didn't take effect without a `--cmdline` arg. None of these were exercised before M4. Each individually was 1–4 hours to fix. Fixing them inside M4 meant unwinding assumptions baked into M2/M3.
+
+**The integration boundaries inventory at project start should have been:**
+
+| #   | Boundary                                                                                 | Type                         | Risk                                         |
+| --- | ---------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------- |
+| U1  | Clone ↔ live MMM (auth + GraphQL contract)                                               | External integration         | High — first ever connection to that surface |
+| U2  | DMM ↔ clone (local-dev wiring: profile config, network, outbound auth, Docker freshness) | Infra + integration          | High — combines two risky categories         |
+| U3  | Captured-response replay parity (wire-shape mismatch between live and clone)             | Internal feature             | Medium                                       |
+| U4  | DMM `mmm.enabled=true` side-effects                                                      | Infra-touching investigation | Medium                                       |
+| U5  | Standalone FE picker                                                                     | Internal feature             | Low                                          |
+
+The integration-first heuristic flags U1 and U2 immediately as the high-risk items: both cross system boundaries the project has never touched. U3–U5 are progressively more "feature work in one system" and can wait. The corrected M1 retires both:
+
+- **M1.T1.1**: Scaffold clone repo (unavoidable scaffolding).
+- **M1.T1.2**: First authenticated `getRule` against live MMM (retires U1).
+- **M1.T1.3**: **Hello-world clone deployed in Docker, returning a hardcoded `{"data": {"ruleNode": {...}}}` response. DMM wired via `LOCAL_DQ` profile + property overrides. Click "Add rule" in the FE and confirm DMM successfully fetches the stub.** (Retires U2 — the actual M4 disaster, surfaced in week 1 with a 30-line stub.)
+
+M2+ then build on a known-working integration: capture a rule (M2), serve all queries (M3), refactor the FE picker (M4), assignments (M5), evaluation (M6), filter parity (M7). Each milestone takes a slice known to work end-to-end and extends it.
+
+**Net cost of doing this right: ~1 extra task in M1.** Net benefit: every later milestone runs on retired-risk foundations.
+
+##### When build-up is acceptable
+
+If a project has only one high-risk axis and the rest is well-trodden ground, build-up around that one axis is fine. The risk-first rule kicks in when there are two or more co-equal unknowns; the trap is letting one unknown dominate the schedule and pushing the others to the end.
+
+#### A. Spikes for unknowns
+
+If the tech-spec contains open `PENDING` questions or risks that block confident task design, prioritize a Slice 0 spike: 1–few small tasks with potentially disposable code that resolve assumptions before committing to the implementation shape. Spikes that don't produce running code MUST produce a written artifact (`findings.md`, decision note) so they're independently mergeable. Tools: _Tracer bullets_, _Learning tests_.
+
+If there are no blocking unknowns, skip Slice 0.
+
+#### B. The first slice closes the smallest possible end-to-end loop
+
+The very first vertical slice should ideally be **one task** (two only if scaffolding is unavoidable) that closes the smallest possible end-to-end loop. Reason: if the first slice has 5 tasks, the architecture isn't validated until task 5 — that defeats the point of a tracer bullet. Fail-fast pressure compounds across the project; failing fast at task 1 is worth a lot.
+
+**Bad first slice:** scaffold repo → add framework → add config → add types → add first endpoint (5 tasks before any signal).
+**Good first slice:** scaffold + first endpoint that hits the real thing it's meant to integrate with (immediately answers "does the architecture work").
+
+#### B.1. The tracer-bullet rule applies to EVERY new-integration milestone, not just M1
+
+Principle 0 (risk-first ordering) tells you which milestones come first. Principle B.1 tells you what each integration milestone's first task is. They reinforce each other: the riskiest unknowns drive the earliest milestones, and within each integration milestone the first task is a thin end-to-end probe.
+
+Whenever a milestone introduces a new external boundary — a new service-to-service hop, a new external API, a new infrastructure dependency, a new auth surface — the **first task of that milestone must be a thin end-to-end probe** of the integration. Not the implementation. Not preparatory config. The probe.
+
+The probe can return a stubbed "hello world", an expected failure with a known status code, or an empty success — what matters is that it runs the full network/auth/serialization path. Polish (real handlers, full feature behavior, FE work) layers on after the integration is known-working.
+
+**Why this matters more than principle B:** principle B is about the project's first slice (M1). B.1 is about every later milestone that introduces fresh integration risk. New integration risk doesn't only live at project start — it lives at every new wire-up point. Each one needs its own tracer bullet.
+
+**How to spot a milestone that needs this rule:** ask "what new wire is this milestone activating for the first time?" If the answer names a service/API/auth surface that wasn't talking to ours before, the milestone needs an integration-probe first task.
+
+**Concrete failure case (T4.5 in mmm-clone, 2026-05-04):**
+
+M4 connected DMM (Spring Boot) to a new local mmm-clone (Hono+Yoga) via `LOCAL_DQ` Spring profile. The original task split was:
+
+- T4.1: Add `LOCAL_DQ` profile config
+- T4.2: Investigate `mmm.enabled=true` side-effects
+- T4.3: Investigate `MetadataManager` and `DqConfigurationSync` boot dependencies
+- T4.4: Build FE rule-picker modal in `apps/one-data`
+- T4.5: Manual smoke — open the picker, see seeded rules
+
+Each task was small and well-shaped individually. The architecture risk was concentrated at T4.5: did DMM's outbound auth work locally? Did the Docker image actually run current code? Did Spring profile property overrides resolve correctly? **All three had to work for T4.5 to demo.** None had been exercised before T4.5. When T4.5 ran, all three failed simultaneously and the milestone hit a wall after 4 tasks of preparatory work.
+
+The correct shape was a tracer bullet first:
+
+- **M4.0 (new): "Boot DMM with `LOCAL_DQ` profile against the clone and confirm a single GraphQL request reaches the clone (any response — empty list, stub, even a known-status error)."** This would have surfaced (a) stale Docker image reuse, (b) K8s SA token unavailability, (c) Spring profile property override quirk — all within 30–60 minutes, before any FE work.
+- M4.1+: T4.1 profile, T4.2/T4.3 investigations, T4.4 FE — each layering on a known-working integration.
+
+The price of skipping the M4.0 probe: 4 tasks of work (~10 hours) committed before the auth blocker surfaced, then a debugging detour, then folding the fix back into T4.5 retroactively. The probe would have been the cheapest task in the milestone.
+
+**Concrete success case (M1 in mmm-clone):** T1.2 ("run first authenticated `getRule` learning test against live MMM") was correctly designed as a tracer bullet — it integrated everything new (auth, GraphQL transport, response shape) in one task before any clone-side resolver work. M1 worked. The principle was applied to M1 but not propagated to M4.
+
+**Apply this rule at task-creation time** by asking: "what new wire does this milestone activate? what's the cheapest end-to-end probe of it?" If you can't write that probe as the first task, the milestone is missing its tracer bullet.
+
+#### C. Task sizing
+
+**Each task MUST be a reasonably small but completable self-sufficient unit.** Focus on one specific concern. Move work forward in a size that allows progress, verification, and merge to main. Small enough to complete in a single agentic run without context compaction.
 
 **1 task = 1 commit.** A task is the unit of work that produces exactly one focused commit.
+**Task must be standalone mergeable** — main must not break after the commit lands.
 
 **Splitting litmus test — if ANY of these are true, the task is too big:**
-- Task has more than 3-4 acceptance criteria
-- Task touches more than 2-3 files (excluding test files)
-- Task bundles two distinct UI concerns (e.g., "preview panel + impact banner" → split into two tasks)
-- Task includes a multi-step wizard → each step is its own task
-- Task description needs sub-headers to explain different parts
-- You need more than a short paragraph to describe the implementation
+
+- More than 3–4 acceptance criteria
+- Bundles two distinct concerns (e.g., "preview panel + impact banner" → split)
+- Description needs sub-headers to explain different parts
+- The Goal sentence is two sentences instead of one
 
 **How to split large tasks:**
-- **By UI concern:** "Add button + wire handler" is one task, "Add dialog content" is another
-- **By data flow layer:** "Add GraphQL query + hook" is one task, "Wire hook into component" is another
-- **By wizard step:** Each step of a multi-step wizard is its own task
-- **By behavior:** "Create form with validation" → split to "Create form shell" + "Add validation logic"
-- **By state:** "Add Zustand store + wire to UI" → split to "Create store with actions" + "Connect store to component"
 
-#### 5c. Walking Skeleton / Vertical Slices
+- **By UI concern:** "Add button + wire handler" is one task; "Add dialog content" is another
+- **By data flow layer:** "Add GraphQL query + hook" is one task; "Wire hook into component" is another
 
-Each subsequent task extends the skeleton:
-- Never build a horizontal layer (all models, then all services, then all UI)
-- Each task touches all layers needed for ONE small capability
-- Each task leaves the system in a working state
+#### D. Vertical slices, not horizontal layers
 
-#### 5d. Milestone Grouping (= MR Boundaries)
+Each task should deliver a narrow but COMPLETE path through every layer it touches (schema, API, UI, tests). A completed slice is demoable or verifiable on its own. Prefer many thin vertical slices over a few thick horizontal ones.
+
+**Horizontal-vs-vertical check (apply to each milestone before locking):** look at the tasks in the milestone. If they form a chain of layers (e.g., `lexer → parser → evaluator → wire-up`), that's horizontal — nothing is demoable until the last task. Re-slice into vertical tasks that each touch multiple layers and deliver a small slice of behavior. If the chain is unavoidable for a single piece of internal mechanism, fold the chain into a single task or push the whole mechanism into a later milestone where it becomes a vertical slice in its own right.
+
+Hardcoded / trivial implementation behind the interfaces defined in the tech-spec is fine and expected (those stubs get replaced in a later task that has a behavior-driven reason to exist). Deploys behind a feature flag where applicable.
+
+Example:
+
+- ❌ Bad: do all UI work in one task, then API integration in another. (Horizontal — nothing works end-to-end until both land.)
+- ✅ Good: wire one small UI element to the real API, end to end. Verify it works, learn lessons, then move to the next task.
+
+#### E. Name tasks by behavior unlocked, not artifact produced
+
+After drafting the task list, rename each task starting with a _user-visible verb_ describing what becomes possible after the task lands. **"Show one rule via clone"** beats **"Wire NodeSerializer to Query.rule resolver."** If you can't write a behavior-flavored name, the task is too internal — bundle it into a parent task (whose name describes the behavior the parent unlocks) or rephrase.
+
+This catches infrastructure-only tasks that should be folded into the slice they enable. "Build auth module" is a smell. "Run first authenticated test against live API" is the actual goal — and naturally absorbs the auth module as part of the work.
+
+#### F. Define jargon in the Goal
+
+When a task title uses domain jargon (e.g., "DSL parser," "TCS mock-mode override"), the **Goal sentence MUST define the jargon in one plain-language clause**. A reviewer should not need to read prior context to understand the task. If the Goal can't accommodate the definition without becoming two sentences, the task title is too dense — rename.
+
+#### G. Order tasks by demo unlock, not completeness
+
+When deciding whether a task lands in an early milestone or a later one, ask: **"If we don't ship this task, does the milestone's demo still happen?"** If yes, the task belongs in a later milestone — even if the early milestone's behavior is rough or partial. Tracer-bullet shipping prefers rough end-to-end working over polished partial working. The order is determined by what enables each demo, not by what feels "complete."
+
+This is not a scope decision (everything in the PRD is in scope). It's an ordering decision.
+
+#### H. Milestone grouping (= MR boundaries)
 
 Group tasks into milestones. Each milestone = one mergeable MR. Each milestone:
-- Is independently mergeable to main (with feature flag if needed)
+
+- Is independently mergeable to main (with a feature flag if needed)
 - Contains multiple small tasks that together form a functional increment
-- Delivers visible value (not just "infrastructure")
 - Has clear acceptance criteria
+- **MUST have a "Demo:" line stating in one sentence what becomes visible/demoable at the end of the milestone.** If the demo is "a passing test" or "infrastructure exists," the milestone is wrong — fold it into the next one or split into something that closes a loop. The first milestone is the only one allowed to demo "a passing first contract test" because that _is_ the tracer bullet.
 
-**Task mergeability annotations:** A single task might NOT be independently mergeable (e.g., a store without UI that uses it). For each task, annotate:
-- **Standalone mergeable?** Yes/No
-- **If No → Required companion tasks:** list the minimum set of tasks needed for a mergeable unit
-- Keep the number of required companion tasks to the absolute minimum
+### 5. Quiz the user
 
-#### 5e. Task Ordering for Fastest Feedback
+Present the proposed breakdown as a numbered list. For each milestone, show:
 
-1. Tracer bullet (proves architecture)
-2. Core happy path (proves value)
-3. Edge cases and error handling
-4. Polish, optimization, cleanup
+- **Demo:** what becomes visible/demoable at the end (one sentence)
+- **Tasks** (numbered): each with a behavior-flavored title, type (HITL/AFK), and blocked-by
+
+For each task, show:
+
+- Title (verb-led, behavior-flavored — see principle E)
+- Type: HITL (Human In The Loop) / AFK (Away From Keyboard)
+- Blocked by: which other tasks (if any) must complete first
+- PRD acceptance criteria covered: which line(s) of the PRD's acceptance criteria this task moves forward
+
+Ask the user:
+
+- Does the granularity feel right? (too coarse / too fine)
+- Are dependency relationships correct?
+- Should any tasks be merged or split further?
+- Is each milestone's "Demo:" line genuinely demoable, or is it disguised infrastructure?
+- Are HITL/AFK marks correct?
+- Iterate until the user approves the breakdown.
 
 ### 6. Write tasks.md
 
+If not existing:
+
+- Read from `/Users/tomas.pustelnik/Developer/tasks-vault/_templates/tasks.md`
+- Replace placeholders (`{{FEATURE_NAME}}`, `{{JIRA_ID}}`, `{{STATUS}}`, `{{DATE}}`)
+- Write `tasks.md` to feature folder
+
 For each task, include:
+
 - **Goal** (one sentence — if you need two sentences, the task is too big)
-- **Interfaces implemented** — which contracts from tech-spec this task implements
 - **Feature flag** — how this task uses FF (wire new / extend existing / not needed)
-- **Files** to modify and create (with test files) — max 2-3 production files per task
 - **Implementation details** — a short paragraph, not sub-sections. If you need sub-headers, split the task
 - **Tests to write** — TDD: test describes behavior through public interface
 - **Acceptance criteria** — max 3-4 verifiable checkboxes. More = task is too big
-- **Standalone mergeable?** — Yes or No. If No, list the minimum companion tasks required for a mergeable unit
-
-### 7. Self-Check: Apply Splitting Litmus Test
-
-Before presenting to user, review EVERY task against section 5b litmus test. Split any task that fails.
-
-**Especially watch for FE tasks that bundle:**
-- Multiple UI components in one task (split by component)
-- Store creation + UI wiring (split by layer)
-- Multi-step flows (split by step)
-- Form + validation + submission (split into form shell, validation, submit handler)
-
-### 8. Present to User for Approval
-
-Show:
-- Milestone overview (each milestone = one MR)
-- Task dependency graph with milestone boundaries
-- Task overview table with **Standalone mergeable?** column
-- Highlight: tracer bullet (T1), milestone boundaries, feature flag gates, companion task groups
-
-**WAIT for user to approve.** User may request re-ordering, splitting, or merging. Update and get final approval.
-
-## Quick Reference
-
-| Constraint | Rule |
-|-----------|------|
-| **20 min max per task** | **THE key constraint. If bigger, split. No exceptions** |
-| 1 task = 1 commit | Each task produces exactly one focused commit |
-| T1 = tracer bullet | Always. E2E slice, trivial impl, proves architecture |
-| Vertical slices | Each task touches all layers for one small capability |
-| Milestone = MR | Each milestone is one independently mergeable MR |
-| Standalone mergeable? | Annotate each task. If No, list minimum companion tasks |
-| Max 2-3 prod files | Per task (excluding test files). More = too big |
-| Max 3-4 AC checkboxes | Per task. More acceptance criteria = task is too big |
-| Feature flags | Wire FF from T1. All partial work behind flags |
-| Interfaces from spec | Tasks implement contracts defined in tech-spec |
-| Fastest feedback first | Tracer → happy path → edges → polish |
-| TDD ready | Each task's tests describe behavior through public API |
+- **Dependencies on other tasks** - what tasks are needed to start working on this one, what tasks are blocked by this one
 
 ## Common Mistakes
 
-- **Tasks too large** — bundling multiple concerns (e.g., "preview panel + impact banner"). Split by concern
-- **Multi-step wizard as one task** — each wizard step should be its own task
-- **Store + UI in one task** — split: create store → wire store to component
-- **Form + validation + submit as one task** — split into form shell, validation logic, submit handler
-- Starting with infrastructure/models instead of tracer bullet
-- Horizontal slicing (all repos, then all services, then all UI)
-- Tasks too vague for a coding agent — be specific
-- Forgetting feature flags — partial work must be invisible to users
-- Not annotating task mergeability — companion tasks must be explicit
-- Creating tasks before tech-spec is approved
+- **Tasks too large** — bundling multiple concerns (e.g., "preview panel + impact banner"). Split by concern.
+- **Multi-step wizard as one task** — each wizard step should be its own task.
+- **Store + UI in one task** — split: create store → wire store to component.
+- **Form + validation + submit as one task** — split into form shell, validation logic, submit handler.
+- **Starting with infrastructure/models** instead of tracer bullet. The first slice must close an end-to-end loop, not lay foundations.
+- **Horizontal slicing** (all repos, then all services, then all UI) — re-slice into vertical paths through every layer.
+- **Horizontal layer chains inside a milestone** (e.g., `lex → parse → eval → wire`) — nothing demos until the last task. Apply the horizontal-vs-vertical check (principle D).
+- **Naming tasks by artifact, not behavior** — "Build NodeSerializer" is wrong; "Show one rule via clone" is right. Apply the rename test (principle E).
+- **Imposing v1/v2 phasing the PRD didn't ask for** — scope is exactly what's in the PRD; tasks-grouped-into-milestones is the only structure. If something feels like "future quality work," check whether it's actually in PRD scope. If not, drop it. If yes, just order it to the right milestone.
+- **A milestone whose "Demo:" reads "passing tests" or "infrastructure exists"** — except for the very first tracer-bullet milestone, milestones must demo a behavior. Re-slice or fold into the next milestone.
+- **Five-task first slice** — fail-fast pressure dictates 1–2 tasks for the very first slice. Apply principle B.
+- **No tracer bullet at the start of an integration milestone** — even if M1's tracer bullet was correct, every later milestone that introduces a new external boundary (new service hop, new auth surface, new infra dependency) needs its own tracer bullet as task 1. Apply principle B.1. Concentrating integration risk at the END of the milestone (e.g. via a "manual smoke" final task) means N-1 tasks of preparatory work before architecture is validated.
+- **Build-up milestone ordering when there are co-equal unknowns** — sequencing milestones by the dependency tree ("foundation → walls → roof") feels natural but defers risk to the end. If two or more hypotheses are co-equal at high uncertainty × cost, schedule them as parallel-or-sequential probes in M1, not at opposite ends of the project. Apply principle 0. The `mmm-clone` example: live-MMM contract (U1) AND DMM-with-`LOCAL_DQ`-reaches-an-HTTP-service-we-control (U2) were both high-risk; only U1 was probed in M1, U2 was deferred to M4 and surfaced three independent failures simultaneously.
+- **Confusing "biggest scope" with "biggest unknown"** — a milestone with a lot of scaffolding is not the same as a milestone with a lot of risk. Scaffolding is volume; uncertainty is the chance the design holds up under reality. Schedule by uncertainty, not by volume.
+- **Jargon in task title with no plain-language definition in the Goal** — apply principle F.
+- **Investigation tasks not producing an artifact** — spikes that don't run code must produce `findings.md` or a decision note so they're independently mergeable.
+- **Tasks too vague for a coding agent** — be specific about files, behavior, verification.
+- **Forgetting feature flags** — partial work landing on main must be invisible to users when applicable.
+- **Not annotating task mergeability** — companion tasks (e.g., a feature-flag wiring + the behavior behind it) must be explicit about their merge order.
+- **Creating tasks before tech-spec is approved.**
 
 ## Output
 
