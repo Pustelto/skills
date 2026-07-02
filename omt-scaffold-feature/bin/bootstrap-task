@@ -1,0 +1,323 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# This script is bundled with the omt-scaffold-feature skill.
+# Templates live next to it (../templates); the destination tasks-vault is
+# resolved from (in order): --vault flag, $OMT_TASKS_VAULT, a config file, then
+# a sensible default. No vault path is hardcoded in the skill logic.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+TEMPLATES_DIR="$SKILL_DIR/templates"
+CONFIG_FILE="${OMT_CONFIG_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omt/config}"
+DEFAULT_STATUS="pending"
+DEFAULT_JIRA_ID="NO-TICKET"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bootstrap-task [feature-name] [options]
+
+Options:
+  --name VALUE       Feature name or slug. If omitted, prompt interactively.
+  --jira VALUE       Jira ID, ticket label, or NO-TICKET. Default: NO-TICKET
+  --status VALUE     pending | in-progress | done. Default: pending
+  --vault PATH       Tasks-vault directory to create the feature in.
+                     Overrides $OMT_TASKS_VAULT and the config file.
+  --all-files        Create prd.md, tech-spec.md, tasks.md, implementation.md
+  --no-context       Skip .omt-context creation prompt
+  --dry-run          Print the target folder and files without writing anything
+  -h, --help         Show this help
+
+Vault resolution order:
+  1. --vault PATH
+  2. $OMT_TASKS_VAULT
+  3. "vault=" line in $OMT_CONFIG_FILE (default: ~/.config/omt/config)
+  4. $HOME/Developer/tasks-vault (fallback)
+
+Examples:
+  bootstrap-task bulk-role-editor --jira ONE-12345
+  bootstrap-task "dtf local dev stack" --jira NO-TICKET --all-files
+  OMT_TASKS_VAULT=~/work/vault bootstrap-task --status in-progress
+EOF
+}
+
+trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+is_truthy() {
+  local value
+  value="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  [[ "$value" == "y" || "$value" == "yes" || "$value" == "true" ]]
+}
+
+# Resolve the tasks-vault directory from flag, env var, config file, or default.
+resolve_vault_dir() {
+  local from_flag="${1-}"
+
+  if [[ -n "$(trim "$from_flag")" ]]; then
+    printf '%s' "$from_flag"
+    return
+  fi
+
+  if [[ -n "${OMT_TASKS_VAULT-}" ]]; then
+    printf '%s' "$OMT_TASKS_VAULT"
+    return
+  fi
+
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local configured
+    configured="$(sed -n 's/^[[:space:]]*vault[[:space:]]*=[[:space:]]*//p' "$CONFIG_FILE" | head -n1)"
+    configured="$(trim "$configured")"
+    if [[ -n "$configured" ]]; then
+      printf '%s' "$configured"
+      return
+    fi
+  fi
+
+  printf '%s' "$HOME/Developer/tasks-vault"
+}
+
+prompt_if_empty() {
+  local prompt="$1"
+  local default_value="${2-}"
+  local current_value="${3-}"
+  local answer
+
+  if [[ -n "$(trim "$current_value")" ]]; then
+    printf '%s' "$current_value"
+    return
+  fi
+
+  if [[ -n "$default_value" ]]; then
+    printf '%s [%s]: ' "$prompt" "$default_value" >&2
+    read -r answer
+    printf '%s' "${answer:-$default_value}"
+    return
+  fi
+
+  printf '%s: ' "$prompt" >&2
+  read -r answer
+  printf '%s' "$answer"
+}
+
+prompt_yes_no_if_unset() {
+  local prompt="$1"
+  local default_value="$2"
+  local current_value="${3-}"
+  local answer
+
+  if [[ -n "$(trim "$current_value")" ]]; then
+    if is_truthy "$current_value"; then
+      printf 'true'
+    else
+      printf 'false'
+    fi
+    return
+  fi
+
+  printf '%s [%s]: ' "$prompt" "$default_value" >&2
+  read -r answer
+  answer="$(trim "${answer:-$default_value}")"
+
+  if is_truthy "$answer"; then
+    printf 'true'
+  else
+    printf 'false'
+  fi
+}
+
+slugify() {
+  local value="$1"
+
+  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+  value="$(printf '%s' "$value" | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')"
+  printf '%s' "$value"
+}
+
+title_case() {
+  local value="$1"
+
+  value="$(printf '%s' "$value" | tr '_-' '  ')"
+  printf '%s' "$value" | awk '
+    {
+      for (i = 1; i <= NF; i++) {
+        $i = toupper(substr($i, 1, 1)) tolower(substr($i, 2))
+      }
+      print
+    }
+  '
+}
+
+render_template() {
+  local template_name="$1"
+  local destination="$2"
+
+  FEATURE_NAME="$FEATURE_TITLE" \
+  JIRA_ID="$JIRA_ID" \
+  STATUS="$STATUS" \
+  DATE="$CREATED_AT" \
+  perl -pe '
+    s/\{\{FEATURE_NAME\}\}/$ENV{FEATURE_NAME}/g;
+    s/\{\{JIRA_ID\}\}/$ENV{JIRA_ID}/g;
+    s/\{\{STATUS\}\}/$ENV{STATUS}/g;
+    s/\{\{DATE\}\}/$ENV{DATE}/g;
+  ' "$TEMPLATES_DIR/$template_name" > "$destination"
+}
+
+FEATURE_INPUT=""
+JIRA_ID=""
+STATUS=""
+VAULT_FLAG=""
+CREATE_ALL_FILES="false"
+DRY_RUN="false"
+CREATE_ALL_FILES_SET=""
+NO_CONTEXT="false"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --name)
+      FEATURE_INPUT="${2-}"
+      shift 2
+      ;;
+    --jira)
+      JIRA_ID="${2-}"
+      shift 2
+      ;;
+    --status)
+      STATUS="${2-}"
+      shift 2
+      ;;
+    --vault)
+      VAULT_FLAG="${2-}"
+      shift 2
+      ;;
+    --all-files)
+      CREATE_ALL_FILES="true"
+      CREATE_ALL_FILES_SET="true"
+      shift
+      ;;
+    --no-context)
+      NO_CONTEXT="true"
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN="true"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      printf 'Unknown option: %s\n\n' "$1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -z "$FEATURE_INPUT" ]]; then
+        FEATURE_INPUT="$1"
+        shift
+      else
+        printf 'Unexpected argument: %s\n\n' "$1" >&2
+        usage >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+VAULT_DIR="$(resolve_vault_dir "$VAULT_FLAG")"
+VAULT_DIR="${VAULT_DIR/#\~/$HOME}"
+
+if [[ ! -d "$TEMPLATES_DIR" ]]; then
+  printf 'Templates directory not found: %s\n' "$TEMPLATES_DIR" >&2
+  exit 1
+fi
+
+if [[ ! -d "$VAULT_DIR" ]]; then
+  printf 'Tasks-vault directory not found: %s\n' "$VAULT_DIR" >&2
+  printf 'Set it via --vault, $OMT_TASKS_VAULT, or a "vault=" line in %s\n' "$CONFIG_FILE" >&2
+  exit 1
+fi
+
+FEATURE_INPUT="$(prompt_if_empty "Feature name" "" "$FEATURE_INPUT")"
+JIRA_ID="$(prompt_if_empty "Jira ID" "$DEFAULT_JIRA_ID" "$JIRA_ID")"
+STATUS="$(prompt_if_empty "Status" "$DEFAULT_STATUS" "$STATUS")"
+if [[ -z "$CREATE_ALL_FILES_SET" ]]; then
+  CREATE_ALL_FILES="$(prompt_yes_no_if_unset "Create all standard files? (y/N)" "N" "")"
+fi
+
+FEATURE_INPUT="$(trim "$FEATURE_INPUT")"
+JIRA_ID="$(trim "$JIRA_ID")"
+STATUS="$(trim "$STATUS")"
+
+if [[ -z "$FEATURE_INPUT" ]]; then
+  printf 'Feature name is required.\n' >&2
+  exit 1
+fi
+
+case "$STATUS" in
+  pending|in-progress|done)
+    ;;
+  *)
+    printf 'Invalid status: %s. Use pending, in-progress, or done.\n' "$STATUS" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$(printf '%s' "$JIRA_ID" | tr '[:lower:]' '[:upper:]')" == "NO-TICKET" ]]; then
+  JIRA_ID="NO-TICKET"
+fi
+
+FEATURE_SLUG="$(slugify "$FEATURE_INPUT")"
+
+if [[ -z "$FEATURE_SLUG" ]]; then
+  printf 'Feature name must contain at least one letter or number.\n' >&2
+  exit 1
+fi
+
+FEATURE_TITLE="$(title_case "$FEATURE_INPUT")"
+CREATED_AT="$(date +%F)"
+TARGET_DIR="$VAULT_DIR/$STATUS-$JIRA_ID-$FEATURE_SLUG"
+
+FILES=("prd.md")
+if [[ "$CREATE_ALL_FILES" == "true" ]]; then
+  FILES=("prd.md" "tech-spec.md" "tasks.md" "implementation.md")
+fi
+
+if [[ -e "$TARGET_DIR" ]]; then
+  printf 'Target already exists: %s\n' "$TARGET_DIR" >&2
+  exit 1
+fi
+
+printf 'Vault: %s\n' "$VAULT_DIR"
+printf 'Target: %s\n' "$TARGET_DIR"
+printf 'Files:\n'
+for file in "${FILES[@]}"; do
+  printf '  - %s\n' "$file"
+done
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  exit 0
+fi
+
+mkdir -p "$TARGET_DIR"
+for file in "${FILES[@]}"; do
+  render_template "$file" "$TARGET_DIR/$file"
+done
+
+printf 'Feature initialized at %s\n' "$TARGET_DIR"
+
+if [[ "$NO_CONTEXT" != "true" ]]; then
+  CREATE_CONTEXT="$(prompt_yes_no_if_unset "Create .omt-context in current directory? (Y/n)" "Y" "")"
+  if [[ "$CREATE_CONTEXT" == "true" ]]; then
+    printf '%s\n' "$TARGET_DIR" > "$(pwd)/.omt-context"
+    printf '.omt-context created → %s\n' "$TARGET_DIR"
+  fi
+fi

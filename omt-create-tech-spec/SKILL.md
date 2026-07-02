@@ -29,7 +29,7 @@ This skill **runs in the main thread** — the conversation with the user happen
 
 ## Important principles to always keep in mind
 
-- Record all techical decisions with details, all considered options and pros and cons so we can later translate those decision to ADRs in teh repository to capture the architecture evolution and reasoning behind it.
+- Record all technical decisions with details, all considered options and pros and cons so we can later translate those decision to ADRs in the repository to capture the architecture evolution and reasoning behind it.
 - Hard problems and unknowns are always solved first.
 
 ## Process
@@ -66,7 +66,7 @@ Ask **one focused question at a time** in plain prose. Do NOT use `AskUserQuesti
 
 ### 2. Codebase Research (parallel subagents)
 
-Dispatch in **parallel** via the Agent tool — one message, multiple tool calls. Use these specialized agents (defined in `~/.claude/agents/`):
+Dispatch in **parallel** via the Agent tool — one message, multiple tool calls. Use these specialized agents. Their definitions are **bundled with this skill** in `agents/` (next to this `SKILL.md`); they are also installed globally under `~/.claude/agents/`. If a `subagent_type` below isn't registered in your environment, install the bundled copy into your agents directory first.
 
 | Agent                     | Purpose                        | Prompt focus                                      |
 | ------------------------- | ------------------------------ | ------------------------------------------------- |
@@ -96,7 +96,7 @@ Spawn 2–4 agents in parallel based on what's needed. Wait for all to complete 
 
 **When to skip:** small internal feature with no fresh integration, well-trodden code path, minor enhancement to existing module.
 
-If you decide to research, dispatch **multiple `web-search-researcher` agents in parallel** — each on a focused angle (one for "how does framework X recommend doing Y", one for "industry approaches to Z", one for "comparable apps that solve this"). Goal: don't reinvent the wheel, don't invent in-house abstractions when industry has a name for it.
+If you decide to research, dispatch **multiple `web-search-researcher` agents in parallel** (this agent is also bundled in `agents/` next to this skill) — each on a focused angle (one for "how does framework X recommend doing Y", one for "industry approaches to Z", one for "comparable apps that solve this"). Goal: don't reinvent the wheel, don't invent in-house abstractions when industry has a name for it.
 
 ### 4. Solution Analysis (in main thread, no subagent)
 
@@ -130,6 +130,9 @@ For each, score risk = uncertainty × cost-of-being-wrong. High-risk boundaries 
 - What behaviors must be verified
 - What test level is the highest-value choice (don't push everything to e2e; don't unit-test what only matters at integration)
 - What infrastructure the tests need (fixtures, fakes, real services in containers, test accounts)
+- **Trace every PRD acceptance criterion to at least one behavior verified through the real entry point** (HTTP/GraphQL resolver, CLI, UI handler) — not an inner unit called with a hand-built object. This mapping is what the downstream Definition of Done (`omt-create-tasks`) and the reviewer's criterion→test coverage check rely on; a criterion with no entry-point test is a gap to flag now, not later.
+
+(Repo/FE-BE structure is **not** a tech-spec concern — the spec defines interfaces and owners; how work is sliced into FE vs BE milestones is decided in `omt-create-tasks`.)
 
 Now pick the approach you'd recommend. Be ready to defend it.
 
@@ -165,7 +168,7 @@ Iterate until the user agrees on the shape, **explicitly**.
 
 Only after the user agrees:
 
-1. If `tech-spec.md` doesn't exist: copy from `/Users/tomas.pustelnik/Developer/tasks-vault/_templates/tech-spec.md`, replace placeholders (`{{FEATURE_NAME}}`, `{{JIRA_ID}}`, `{{STATUS}}`, `{{DATE}}`)
+1. If `tech-spec.md` doesn't exist: copy from the canonical template `../omt-scaffold-feature/templates/tech-spec.md` (owned by the `omt-scaffold-feature` skill), replace placeholders (`{{FEATURE_NAME}}`, `{{JIRA_ID}}`, `{{STATUS}}`, `{{DATE}}`)
 2. Fill in the sections per the dialog. The template includes Testing Strategy and Integration Boundary Inventory sections — populate both.
 3. **Cross-repo dependencies** in the integration boundary inventory must be flagged (separate "Cross-repo?" column).
 4. Mark Q&R items as `PENDING` or `RESOLVED` based on what was decided.

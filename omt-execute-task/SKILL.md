@@ -145,7 +145,7 @@ Use /tdd skill when TDD applies (see Test Value Assessment above). If all change
 When you spot suboptimal code, tech debt, or architectural friction:
 
 - **Small refactor** (< 30 min, same files you are touching): handle it in the REFACTOR step of this MR
-- **Large refactor** (different modules, risky, holistic): invoke `/omt-compound "[REFACTOR] <description of opportunity and suggested approach>"` — captured for future scheduled work via `.memo` system
+- **Large refactor** (different modules, risky, holistic): invoke `/omt-compound "[REFACTOR] <description of opportunity and suggested approach>"` — captured to `implementation.md` for future scheduled work (later migrated to `docs/` by `omt-reflect`)
 
 ## Phase 3: Verify & Prove
 
@@ -222,7 +222,7 @@ Once you finished all the work and all mandatory checks, reply EXACTLY in this f
 
 ## Refactoring
 - Done in this MR: <small refactors performed>
-- Recorded for future: <large refactors captured to .memo>
+- Recorded for future: <large refactors captured to implementation.md>
 
 ## Proof of Work
 <actual command + output — BIGGEST scope proof>

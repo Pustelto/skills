@@ -266,23 +266,44 @@ Group tasks into milestones. Each milestone = one mergeable MR. Each milestone:
 - Has clear acceptance criteria
 - **MUST have a "Demo:" line stating in one sentence what becomes visible/demoable at the end of the milestone.** If the demo is "a passing test" or "infrastructure exists," the milestone is wrong — fold it into the next one or split into something that closes a loop. The first milestone is the only one allowed to demo "a passing first contract test" because that _is_ the tracer bullet.
 
+#### I. One repo per milestone (HARD RULE)
+
+**Each milestone targets exactly ONE repository (FE *or* BE). A milestone must never mix frontend and backend work.** This is a hard rule, not a preference — there is no escape hatch. If a milestone would touch both repos, split it.
+
+Why this is non-negotiable:
+
+- **It's how the work is actually run and merged.** Each milestone is one MR in one repo. The agent harness (sandcastle) runs **one repo at a time** — a BE run only picks BE tasks, an FE run only picks FE tasks. A mixed milestone cannot be driven or merged cleanly by either.
+- **The FE↔BE contract is the integration boundary — i.e. the risk** (Principle 0). Keeping repos in separate milestones forces the contract to be an explicit, testable hand-off instead of an implicit assumption. (A real shipped bug: an FE that queried fields a BE never served, because both lived in one "milestone" and nobody tested the seam end-to-end.)
+
+How to split a cross-repo feature:
+
+1. **BE contract milestone(s) come FIRST.** The backend serves the shared contract (REST/GraphQL schema, the interface the tech-spec defines) and proves it end-to-end through the real entry point. This is the tracer bullet for the integration boundary (Principle B.1).
+2. **FE milestone(s) come AFTER and depend on the BE contract milestone** — list the BE milestone in "Depends On". The FE consumes the now-real contract.
+3. **The contract itself is owned by the tech-spec** (its interface/owner tables). Tasks don't invent it; they implement against it. If the contract is unclear, that's a tech-spec gap — resolve it there first.
+4. If a single task appears to need both repos, it is really **two tasks in two milestones** with the contract between them.
+
+**Tag every milestone and every task with its repo (FE/BE).** This tag is load-bearing: it drives which tasks each repo's run picks. A milestone's repo is the repo all its tasks share.
+
 ### 5. Quiz the user
 
 Present the proposed breakdown as a numbered list. For each milestone, show:
 
+- **Repo:** FE or BE (one only — see principle I)
 - **Demo:** what becomes visible/demoable at the end (one sentence)
-- **Tasks** (numbered): each with a behavior-flavored title, type (HITL/AFK), and blocked-by
+- **Tasks** (numbered): each with a behavior-flavored title, mode (HITL/AFK), and blocked-by
 
 For each task, show:
 
 - Title (verb-led, behavior-flavored — see principle E)
-- Type: HITL (Human In The Loop) / AFK (Away From Keyboard)
+- Repo: FE / BE (matches the milestone's repo)
+- Mode: HITL (Human In The Loop) / AFK (Away From Keyboard)
 - Blocked by: which other tasks (if any) must complete first
 - PRD acceptance criteria covered: which line(s) of the PRD's acceptance criteria this task moves forward
 
 Ask the user:
 
 - Does the granularity feel right? (too coarse / too fine)
+- **Is each milestone single-repo (FE or BE, never both)? Does each FE milestone depend on the BE milestone that serves its contract?** (principle I)
 - Are dependency relationships correct?
 - Should any tasks be merged or split further?
 - Is each milestone's "Demo:" line genuinely demoable, or is it disguised infrastructure?
@@ -293,18 +314,40 @@ Ask the user:
 
 If not existing:
 
-- Read from `/Users/tomas.pustelnik/Developer/tasks-vault/_templates/tasks.md`
+- Read from the canonical template `../omt-scaffold-feature/templates/tasks.md` (owned by the `omt-scaffold-feature` skill)
 - Replace placeholders (`{{FEATURE_NAME}}`, `{{JIRA_ID}}`, `{{STATUS}}`, `{{DATE}}`)
 - Write `tasks.md` to feature folder
 
+**Task Overview table — required columns:** `Task | Title | Milestone | Repo | Mode | Depends On | Status` (plus optional `Standalone?` and, after a Jira sync, `Jira`). `Repo` is `FE` or `BE` (the agent harness reads this column to decide which tasks a repo's run picks — get it right). `Mode` is `AFK` (autonomous) or `HITL` (needs a human). Use bare milestone labels (`M1`, `S2`).
+
 For each task, include:
 
+- **Repo** — `FE` or `BE` (must match the task's milestone repo — principle I)
 - **Goal** (one sentence — if you need two sentences, the task is too big)
 - **Feature flag** — how this task uses FF (wire new / extend existing / not needed)
 - **Implementation details** — a short paragraph, not sub-sections. If you need sub-headers, split the task
 - **Tests to write** — TDD: test describes behavior through public interface
-- **Acceptance criteria** — max 3-4 verifiable checkboxes. More = task is too big
-- **Dependencies on other tasks** - what tasks are needed to start working on this one, what tasks are blocked by this one
+- **Acceptance criteria (Definition of Done)** — max 3-4 verifiable checkboxes. This block is the contract the reviewer audits, so each criterion MUST be:
+  - **Verifiable through the real entry point** the user/caller hits (HTTP/GraphQL resolver, CLI command, UI handler) — NOT an inner function called with a hand-built object. "Editing a reference shows impact via the `recordChangeImpact` resolver" beats "ModifyProducer returns the right subject."
+  - **Backed by a check that actually RUNS** — "compiles", "type-checks", or a test that's written-but-skipped is NOT done. If a new type/case is added, it must be **constructed/reachable in production code**, not just in tests (no dead code).
+  - **Named proof** — say what evidence proves it (e.g. "request+response transcript", "screenshot", "query result rows"). Unit tests alone rarely suffice; prefer integration/roundtrip evidence.
+- **Deliverables** — the concrete artifacts this task produces (code paths touched, the evidence file under the run's `results/`, a migration, a doc). One line.
+- **Dependencies on other tasks** - what tasks are needed to start working on this one, what tasks are blocked by this one. (FE tasks depend on the BE contract milestone — principle I.)
+
+### 7. (Optional) Sync to Jira
+
+After `tasks.md` is written and approved, **ask the user whether to sync the breakdown to Jira** (default: no). Only proceed on an explicit yes. If yes:
+
+- Follow the **`using-jira-cli`** reference for all `jira` CLI usage (custom fields, strict priority names, multi-line description handling, the agent-vs-human create policy). Jira work is **best-effort and non-blocking** — a failure is logged and the run continues; never block task creation on Jira.
+- **Parent epic** = the feature's `jira_id` (frontmatter). If it's `NO-TICKET`/missing, ask the user for the epic key (or whether to create one) before proceeding.
+- **One Jira issue per milestone** (Story/Task), created under the feature epic. Tasks become **sub-tasks** of the milestone issue by default; if the user prefers, render them as a checklist inside the milestone description instead.
+- **Each milestone issue MUST be self-contained** — an agent or human must be able to complete the milestone from Jira alone, without opening the vault. Embed in the description:
+  - Milestone **Repo (FE/BE)**, Goal, and Demo line.
+  - The **tech-spec context** this milestone needs: the interfaces/contracts it implements (copy the relevant rows from tech-spec §3.3), the integration boundaries it crosses (tech-spec §4), and its slice of the test strategy (tech-spec §5).
+  - For **each task**: Goal, Files to modify/create, Implementation details, Tests to write, **Acceptance Criteria (Definition of Done)**, Deliverables, Dependencies — the same content as `tasks.md`. The Jira issue is a mirror, not a summary.
+  - Keep the Acceptance Criteria under a clear `Acceptance Criteria` / `Definition of Done` heading so it stays machine-extractable if the harness later runs from Jira (jira-source mode).
+- **Write keys back** into `tasks.md`: set frontmatter `jira_id` to the epic, record each milestone's issue key (in the Milestones table), and — if using sub-tasks — each task's sub-task key in the Task Overview (`Jira` column).
+- **Idempotent:** before creating, search for an existing issue for this feature/milestone (a stable marker — the milestone label in the summary, or a label like `omt:<feature-slug>:<milestone>`). Update it instead of creating a duplicate.
 
 ## Common Mistakes
 
@@ -327,6 +370,11 @@ For each task, include:
 - **Tasks too vague for a coding agent** — be specific about files, behavior, verification.
 - **Forgetting feature flags** — partial work landing on main must be invisible to users when applicable.
 - **Not annotating task mergeability** — companion tasks (e.g., a feature-flag wiring + the behavior behind it) must be explicit about their merge order.
+- **Mixed-repo milestone** — a milestone with both FE and BE tasks. Hard rule violation (principle I): split into a BE milestone (serves the contract, first) and an FE milestone (consumes it, depends on the BE one).
+- **FE milestone not depending on its BE contract milestone** — the FE consumes a contract the BE must serve first. The FE milestone must list the BE contract milestone in "Depends On", or it'll be built against an unproven seam (the FE↔BE mismatch class).
+- **Missing or wrong `Repo` tag** — every task and milestone needs `FE`/`BE`. The harness reads it to scope a run to one repo; a wrong/blank tag means a run picks the wrong tasks.
+- **Weak acceptance criteria** — "tests pass" / "compiles" / a unit test on an inner function is NOT a Definition of Done. Each criterion must be verifiable through the real entry point, backed by a check that actually runs, with named proof (principle in step 6).
+- **New code with no production caller** — a task that adds a type/case only constructed in tests ships dead code. The DoD must require it to be reachable in production.
 - **Creating tasks before tech-spec is approved.**
 
 ## Output

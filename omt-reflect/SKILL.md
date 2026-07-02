@@ -1,13 +1,13 @@
 ---
 name: omt-reflect
-description: Migrate _implementation.md to organized notes at session end. Agent auto-decides placement (category + level) with reasoning. Updates INDEX.md. Clears _implementation.md. Run after tasks done or session ending.
+description: Migrate implementation.md to organized notes in docs/ at session end. Agent auto-decides placement (category + level) with reasoning. Updates INDEX.md. Clears the implementation log. Run after tasks done or session ending.
 ---
 
 # Reflect & Organize Knowledge
 
 ## Overview
 
-Read `_implementation.md` (in repo root), organize entries into proper notes (standards, runbooks, architecture, refactoring), update INDEX.md, and clear it. This is the "Codify" step of compound engineering.
+Read `implementation.md` (the running implementation log / scratch), organize entries into proper notes in `docs/` (standards, runbooks, architecture, refactoring), update INDEX.md, and reset the log. This is the "Codify" step of compound engineering.
 
 **Agent auto-decides** where each note belongs and provides reasoning. Human reviews in PR.
 
@@ -19,15 +19,16 @@ Read `_implementation.md` (in repo root), organize entries into proper notes (st
 
 ## Process
 
-### 1. Read Scratch File
+### 1. Read the Implementation Log
 
-Read `_implementation.md` — extract all timestamped entries.
+Read `implementation.md` — extract all timestamped entries.
 
 ### 2. Read Existing Knowledge
 
-Read `.memo/INDEX.md` at all relevant levels (global + submodules if applicable).
+Read `docs/INDEX.md` at all relevant levels (global + submodules if applicable).
 
 This helps agent determine:
+
 - If similar note already exists (update vs create)
 - Current knowledge gaps
 - Naming patterns to follow
@@ -37,16 +38,14 @@ This helps agent determine:
 Agent decides for each entry:
 
 **Category:**
+
 - **standard** — convention, pattern, rule to follow
 - **runbook** — step-by-step procedure
 - **architecture** — system design, flow, diagram
 - **refactoring** — friction point, improvement idea
 
-**Level (scope):**
-- **global** — `.memo/` (used across entire codebase)
-- **submodule** — `packages/{name}/.memo/` (specific to one package)
-
 **Action:**
+
 - **create** — new note doesn't exist
 - **update** — related note exists, add to it
 - **skip** — already documented or too minor
@@ -56,21 +55,21 @@ Agent MUST provide reasoning for each decision:
 
 ```
 Entry: "Error handling pattern — discriminated unions"
-Decision: CREATE .memo/standards/error-handling-api-responses.md
+Decision: CREATE docs/standards/error-handling-api-responses.md
 Reasoning: Error handling is global concern (used in all API handlers),
 fits standards category (convention we follow), no existing note found.
 ```
 
 ```
 Entry: "CSV import boilerplate — too repetitive"
-Decision: CREATE .memo/refactoring/csv-import-excessive-boilerplate.md
+Decision: CREATE docs/refactoring/csv-import-excessive-boilerplate.md
 Reasoning: Friction point hit 3 times, medium severity, specific suggestion
 included. Refactoring category (improvement idea, not current standard).
 ```
 
 ```
 Entry: "Auth flow needs diagram"
-Decision: UPDATE .memo/architecture/auth-flow.md (add Mermaid diagram)
+Decision: UPDATE docs/architecture/auth-flow.md (add Mermaid diagram)
 Reasoning: Architecture note already exists, entry is enhancement not new topic.
 ```
 
@@ -79,6 +78,7 @@ Reasoning: Architecture note already exists, entry is enhancement not new topic.
 For each decision:
 
 **If CREATE:**
+
 - Generate SEO-optimized filename (e.g., `error-handling-api-responses.md`)
 - Use appropriate YAML frontmatter (generic vs refactoring)
 - Structure body: Problem/Context → Solution/Approach → Code References
@@ -87,6 +87,7 @@ For each decision:
 - Add file:line references from entry
 
 **If UPDATE:**
+
 - Read existing note
 - Add new example/section
 - Bump `updated` date
@@ -94,11 +95,13 @@ For each decision:
 - Maintain existing structure
 
 **If SKIP:**
+
 - Note in summary why skipped
 
 ### 5. Staleness Check
 
 For notes touched by this feature:
+
 - Check if affected_files have changed significantly
 - Verify examples still exist at referenced file:line
 - Flag for review if stale (add to summary)
@@ -106,6 +109,7 @@ For notes touched by this feature:
 ### 6. Update INDEX.md
 
 For each created/updated note:
+
 - Add or update row in appropriate category section
 - Include detailed summary (more than just filename)
 - Update Change Log section with today's date
@@ -115,33 +119,36 @@ Example INDEX.md update:
 ```markdown
 ## Standards
 
-| Note | Summary |
-|------|---------|
+| Note                                                                        | Summary                                                                                                                                                                                         |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [error-handling-api-responses](./standards/error-handling-api-responses.md) | Three patterns we use for API errors: discriminated unions (type-safe), Result type (explicit), and error boundaries (React). Includes Zod integration and examples from user/product handlers. |
 ```
 
 ### 7. Track Usage (if applicable)
 
 If any notes were referenced during planning/work:
+
 - Increment `usage_count`
 - Update `last_used` date
 
 ### 8. Update CLAUDE.md (optional)
 
 Only for critical, cross-cutting learnings that every agent needs immediately:
+
 - Fundamental conventions (e.g., "Always use Zod for validation")
 - Critical gotchas (e.g., "UserContext loads async — check isLoading")
 - Security requirements
 
 Tag with source: `**From:** {{JIRA_ID}}`
 
-**Default:** Most learnings go to `.memo/` only, not CLAUDE.md. Keep CLAUDE.md lean.
+**Default:** Most learnings go to `docs/` only, not CLAUDE.md. Keep CLAUDE.md lean.
 
-### 9. Clear _implementation.md
+### 9. Clear the Implementation Log
 
 After successful migration:
-- Clear `_implementation.md` completely
-- Leave empty file for next session
+
+- Reset `implementation.md` to its empty template state (remove the migrated entries)
+- Leave the file in place for the next session
 
 ### 10. Present Summary
 
@@ -151,21 +158,21 @@ Show user:
 ✅ Reflection complete — knowledge organized
 
 Created 2 notes:
-- .memo/standards/error-handling-api-responses.md
+- docs/standards/error-handling-api-responses.md
   Reasoning: Global concern (all API handlers), convention to follow
 
-- .memo/refactoring/csv-import-excessive-boilerplate.md
+- docs/refactoring/csv-import-excessive-boilerplate.md
   Reasoning: Friction point (3 occurrences), medium severity
 
 Updated 1 note:
-- .memo/architecture/auth-flow.md (added Mermaid diagram)
+- docs/architecture/auth-flow.md (added Mermaid diagram)
   Reasoning: Enhanced existing doc with visual flow
 
 Skipped 1 entry:
 - "Use Array.flatMap" — already documented in standards/array-methods.md
 
-Updated .memo/INDEX.md with summaries.
-Cleared _implementation.md for next session.
+Updated docs/INDEX.md with summaries.
+Cleared implementation.md for next session.
 
 Changes ready for commit.
 ```
@@ -173,7 +180,7 @@ Changes ready for commit.
 ### 11. Commit Changes
 
 ```bash
-git add .memo/ CLAUDE.md (if updated)
+git add docs/ CLAUDE.md (if updated)
 git commit -m "docs: reflect on {{JIRA_ID}} learnings
 
 Created:
@@ -275,7 +282,7 @@ Extract shared validation pipeline:
 
 If session ends before feature complete:
 
-1. Still migrate `_implementation.md` → notes (don't lose learnings)
+1. Still migrate `implementation.md` entries → notes (don't lose learnings)
 2. Don't update feature status (still in-progress)
 3. Add note to `tasks.md` or feature folder: "Session ended at task X.Y"
 
@@ -284,38 +291,43 @@ Learnings are preserved, feature continues next session.
 ## Agent Decision Guidelines
 
 **When to place in standards/ vs refactoring/:**
+
 - **standards/** — we already do this, documenting the convention
 - **refactoring/** — we should change this, documenting the friction
 
 **When to place global vs submodule:**
+
 - **global** — used in 2+ packages or fundamental to repo
 - **submodule** — specific to one package's domain
 
 **When to create vs update:**
+
 - **create** — new topic not covered by existing notes
 - **update** — adds example/case to existing note
 
 **When to include diagram:**
+
 - Flows (auth, data, user)
 - Multi-step processes
 - Architectures with components
 
 ## Reflection Questions (Self-Check)
 
-| Category | Questions |
-|----------|-----------|
-| **Patterns** | What patterns emerged? Which should be standard? |
-| **Friction** | What was painful? How many times? How to improve? |
-| **Architecture** | What flows/designs need documentation? |
-| **Gaps** | What wasn't documented? What questions recurred? |
+| Category         | Questions                                         |
+| ---------------- | ------------------------------------------------- |
+| **Patterns**     | What patterns emerged? Which should be standard?  |
+| **Friction**     | What was painful? How many times? How to improve? |
+| **Architecture** | What flows/designs need documentation?            |
+| **Gaps**         | What wasn't documented? What questions recurred?  |
 
 ## Validation
 
 After reflection:
+
 - All notes have valid YAML frontmatter
 - All notes have file:line references
 - INDEX.md is valid markdown
-- `_implementation.md` is cleared
+- `implementation.md` is reset to its empty template state
 - No secrets in notes (grep check)
 
 ## Common Mistakes

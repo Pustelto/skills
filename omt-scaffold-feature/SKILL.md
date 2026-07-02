@@ -7,7 +7,14 @@ description: Use when starting a new feature. Step 1 of omt workflow — run bef
 
 ## Overview
 
-Creates a feature directory in the tasks vault using the `bin/bootstrap-task` script from the OMT skills repo.
+Creates a feature directory in the tasks-vault by delegating to the scaffold script **bundled with this skill** at `bin/bootstrap-task` (next to this `SKILL.md`). The script renders the templates bundled in `templates/` (prd, tech-spec, tasks, implementation).
+
+The destination tasks-vault is **not hardcoded** — the script resolves it in this order:
+
+1. `--vault PATH` flag
+2. `$OMT_TASKS_VAULT` environment variable
+3. a `vault=<path>` line in the config file (`$OMT_CONFIG_FILE`, default `~/.config/omt/config`)
+4. fallback `$HOME/Developer/tasks-vault`
 
 Default script behavior creates only `prd.md`. Other files are created lazily by subsequent skills unless `--all-files` is explicitly requested.
 
@@ -31,9 +38,11 @@ Default script behavior creates only `prd.md`. Other files are created lazily by
    - Jira ID: default to `NO-TICKET` if the user leaves it blank.
    - Status: default to `pending` if the user leaves it blank.
    - Create all files: default to `no`.
-3. **Run the script** from the skills repo:
+3. **Run the bundled script** (from the skill directory, or by absolute path):
    - Minimal explicit call:
-     `<skills-repo>/bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --status "$STATUS"`
+     `bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --status "$STATUS"`
+   - If the vault isn't at the default location and no env/config is set, pass it explicitly:
+     `--vault "$OMT_TASKS_VAULT"`
    - If the user wants the full set up front, append:
      `--all-files`
 4. **Capture the output path** from the script and remember it for subsequent skills.
@@ -44,18 +53,25 @@ Default script behavior creates only `prd.md`. Other files are created lazily by
 
 ## Command Reference
 
-```bash
-# Resolve skills repo from this SKILL.md location
-SKILLS_REPO="$(cd "$(dirname "$0")/.." && pwd)"
+The script lives at `bin/bootstrap-task` inside this skill. Run it from the skill directory (or by absolute path):
 
-$SKILLS_REPO/bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --status "$STATUS"
+```bash
+bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --status "$STATUS"
 ```
 
 With all files:
 
 ```bash
-$SKILLS_REPO/bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --status "$STATUS" --all-files
+bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --status "$STATUS" --all-files
 ```
+
+Pointing at a specific vault (when not using `$OMT_TASKS_VAULT` / config):
+
+```bash
+bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --status "$STATUS" --vault "$OMT_TASKS_VAULT"
+```
+
+Run `bin/bootstrap-task --help` for the full option list and vault-resolution order.
 
 ## Input Defaults
 
@@ -64,12 +80,15 @@ $SKILLS_REPO/bin/bootstrap-task --name "$FEATURE_NAME" --jira "$JIRA_ID" --statu
 | Jira ID | `NO-TICKET` |
 | Status | `pending` |
 | Create all files | `no` |
+| Vault | `$OMT_TASKS_VAULT` → `~/.config/omt/config` → `$HOME/Developer/tasks-vault` |
 
 ## Notes
 
 - Do not manually create directories or render templates when the script is available.
 - Do not force kebab-case from the user; pass the human-readable feature name through to the script.
 - The script already guards against duplicate target folders.
+- The script and templates are bundled with this skill (`bin/`, `templates/`) — it carries no hardcoded vault path. If the vault can't be resolved, the script fails loudly and tells the user how to set it (`--vault`, `$OMT_TASKS_VAULT`, or the config file).
+- **`templates/` is the canonical template set for the whole omt workflow.** `omt-create-tech-spec` and `omt-create-tasks` read `tech-spec.md` / `tasks.md` from here (`../omt-scaffold-feature/templates/`) when lazily creating those files, so there is a single source of truth — edit a template here and every skill picks it up.
 
 ## Output
 
