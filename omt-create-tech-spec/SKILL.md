@@ -121,7 +121,7 @@ With all context gathered, you (the senior staff engineer) think.
 - Auth surfaces
 - Database / queue / cache / search-index dependencies
 - Cross-repo touchpoints (mark these explicitly)
-- Local-dev wiring (Docker freshness, profile config, secret loading) — yes, local-dev counts; if `M4` of `mmm-clone` taught us anything, it's that local integration boundaries hide three failures at once
+- Local-dev wiring (Docker freshness, profile config, secret loading) — yes, local-dev counts; if `M4` of the api-clone example (below) taught us anything, it's that local integration boundaries hide three failures at once
 
 For each, score risk = uncertainty × cost-of-being-wrong. High-risk boundaries become tracer-bullet candidates that the tasks skill (omt-create-tasks Principle 0/B/B.1) will schedule first.
 
@@ -196,17 +196,17 @@ Only after the user agrees:
 
 ## Worked failure example — what an Integration Boundary Inventory catches
 
-The `mmm-clone` project's tech-spec did not list "DMM ↔ clone local-dev wiring (Spring profile config, network, outbound auth, Docker image freshness)" as an integration boundary. It looked like internal config work. Tasks-skill scheduled this milestone (M4) by build-up dependency order, putting it after three milestones of internal feature work.
+Consider a project that clones an upstream API for local dev (the api-clone example). Its tech-spec did not list "backend ↔ clone local-dev wiring (Spring profile config, network, outbound auth, Docker image freshness)" as an integration boundary. It looked like internal config work. The tasks skill scheduled this milestone (M4) by build-up dependency order, putting it after three milestones of internal feature work.
 
 When M4 ran, three independent failures fired at once:
 
 - a stale Docker image silently served outdated stubs
-- DMM's `K8sTokenAuthenticationStrategy` couldn't read the SA token on macOS
+- the backend's Kubernetes SA-token auth strategy couldn't read the token file on macOS
 - Spring profile property overrides for the mock URL didn't take effect without a `--cmdline` arg
 
 Each was 1–4 hours individually. Hitting all three simultaneously, after three milestones of work had been built on the assumption that the local integration would just work, meant a debugging detour and rework folded back into the milestone.
 
-If the tech-spec had listed this as a boundary with a "High" risk score, the tasks skill (Principle 0 / B.1) would have scheduled an M1 tracer bullet — a 30-line stub clone, DMM wired, click "Add rule" in the FE, confirm one GraphQL request reaches the clone — and surfaced all three failures within an hour, before any feature work was committed.
+If the tech-spec had listed this as a boundary with a "High" risk score, the tasks skill (Principle 0 / B.1) would have scheduled an M1 tracer bullet — a 30-line stub clone, backend wired, click "Add rule" in the frontend, confirm one GraphQL request reaches the clone — and surfaced all three failures within an hour, before any feature work was committed.
 
 **Lesson for tech-spec authors:** integration boundaries are not just production-cluster service-to-service hops. They include local-dev wiring, profile config, container freshness, secrets-loading paths, and cross-repo schema dependencies. If the wire has never been exercised before, it is an integration boundary. List it.
 
@@ -217,7 +217,7 @@ If the tech-spec had listed this as a boundary with a "High" risk score, the tas
 - **Skipping codebase research and going straight to design** — every spec written this way reinvents existing patterns or misses constraints. Always research first.
 - **Inventing patterns the codebase doesn't use** — "purity over pattern reuse" creates friction and surprises future readers. Override `arch-defaults.md` when the codebase has its own answer.
 - **Web-research-by-default for every spec** — research is for genuinely common-domain or framework-specific problems. A small internal enhancement doesn't need it.
-- **Missing the Integration Boundary Inventory** — see the mmm-clone failure above. Every new wire (service hop, auth surface, infra dep, cross-repo, local-dev wiring) goes in the inventory with a risk score.
+- **Missing the Integration Boundary Inventory** — see the api-clone failure above. Every new wire (service hop, auth surface, infra dep, cross-repo, local-dev wiring) goes in the inventory with a risk score.
 - **Treating local-dev wiring as "config, not integration"** — it's an integration boundary. List it.
 - **Skipping cross-repo dependencies** — if the feature spans repos, every touchpoint is a contract that needs flagging. Ask for repo access before guessing the contract.
 - **Implementation details before contracts** — define interfaces (request/response, module boundaries, data shapes) before writing how they'll be implemented.

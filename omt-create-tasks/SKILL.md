@@ -125,35 +125,35 @@ The fallback method, in three steps:
 
 Build-up scheduling sequences by **dependency** (what depends on what). Risk-first sequences by **uncertainty** (what's unknown). They're different axes. Volume of scaffolding is not the same as risk. Scaffolding is rarely the riskiest part of a project — it's just the most visible. The riskiest part is usually the integration where the system meets reality (auth, network, an external API, a real user flow).
 
-##### Concrete worked example — `mmm-clone` got this wrong, here's the fix
+##### Concrete worked example — an API-clone project got this wrong, here's the fix
 
-The `mmm-clone` project's original milestones were:
+Consider a project that builds a local **clone** of an upstream API (call it `api-clone`) so a backend service can talk to a controllable local stand-in during development. Its original milestones were:
 
-- M1: First authenticated `getRule` test against live MMM
+- M1: First authenticated `getRule` test against the live upstream API
 - M2: Show one captured rule via the clone end-to-end (in-process tests)
 - M3: Serve all 3 queries from real captures
-- M4: Connect local DMM and FE to the clone
+- M4: Connect the local backend and frontend to the clone
 - M5+: Assignments, evaluation, real filters
 
-This is build-up. M1 attacked one real unknown (live-MMM contract + auth) but a co-equal unknown — **"can DMM with `LOCAL_DQ` profile reach an HTTP service we control?"** — was deferred to M4. By M4, three milestones of work were committed on the assumption that the local-dev integration would work. When M4 ran, three independent failures fired simultaneously: (a) a stale Docker image silently served outdated stubs, (b) DMM's `K8sTokenAuthenticationStrategy` couldn't read `/var/run/secrets/kubernetes.io/serviceaccount/token` on macOS, (c) Spring profile property overrides for the TCS-mock URL didn't take effect without a `--cmdline` arg. None of these were exercised before M4. Each individually was 1–4 hours to fix. Fixing them inside M4 meant unwinding assumptions baked into M2/M3.
+This is build-up. M1 attacked one real unknown (live-upstream contract + auth) but a co-equal unknown — **"can the backend, running under its local profile, reach an HTTP service we control?"** — was deferred to M4. By M4, three milestones of work were committed on the assumption that the local-dev integration would work. When M4 ran, three independent failures fired simultaneously: (a) a stale Docker image silently served outdated stubs, (b) the backend's Kubernetes service-account token auth strategy couldn't read the SA token file on macOS, (c) local profile property overrides for the mock-upstream URL didn't take effect without a `--cmdline` arg. None of these were exercised before M4. Each individually was 1–4 hours to fix. Fixing them inside M4 meant unwinding assumptions baked into M2/M3.
 
 **The integration boundaries inventory at project start should have been:**
 
-| #   | Boundary                                                                                 | Type                         | Risk                                         |
-| --- | ---------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------- |
-| U1  | Clone ↔ live MMM (auth + GraphQL contract)                                               | External integration         | High — first ever connection to that surface |
-| U2  | DMM ↔ clone (local-dev wiring: profile config, network, outbound auth, Docker freshness) | Infra + integration          | High — combines two risky categories         |
-| U3  | Captured-response replay parity (wire-shape mismatch between live and clone)             | Internal feature             | Medium                                       |
-| U4  | DMM `mmm.enabled=true` side-effects                                                      | Infra-touching investigation | Medium                                       |
-| U5  | Standalone FE picker                                                                     | Internal feature             | Low                                          |
+| #   | Boundary                                                                                        | Type                         | Risk                                         |
+| --- | ----------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------- |
+| U1  | Clone ↔ live upstream API (auth + GraphQL contract)                                             | External integration         | High — first ever connection to that surface |
+| U2  | Backend ↔ clone (local-dev wiring: profile config, network, outbound auth, Docker freshness)    | Infra + integration          | High — combines two risky categories         |
+| U3  | Captured-response replay parity (wire-shape mismatch between live and clone)                     | Internal feature             | Medium                                       |
+| U4  | Backend `upstream.enabled=true` side-effects                                                     | Infra-touching investigation | Medium                                       |
+| U5  | Standalone frontend picker                                                                       | Internal feature             | Low                                          |
 
 The integration-first heuristic flags U1 and U2 immediately as the high-risk items: both cross system boundaries the project has never touched. U3–U5 are progressively more "feature work in one system" and can wait. The corrected M1 retires both:
 
 - **M1.T1.1**: Scaffold clone repo (unavoidable scaffolding).
-- **M1.T1.2**: First authenticated `getRule` against live MMM (retires U1).
-- **M1.T1.3**: **Hello-world clone deployed in Docker, returning a hardcoded `{"data": {"ruleNode": {...}}}` response. DMM wired via `LOCAL_DQ` profile + property overrides. Click "Add rule" in the FE and confirm DMM successfully fetches the stub.** (Retires U2 — the actual M4 disaster, surfaced in week 1 with a 30-line stub.)
+- **M1.T1.2**: First authenticated `getRule` against the live upstream API (retires U1).
+- **M1.T1.3**: **Hello-world clone deployed in Docker, returning a hardcoded `{"data": {"ruleNode": {...}}}` response. Backend wired via its local profile + property overrides. Click "Add rule" in the frontend and confirm the backend successfully fetches the stub.** (Retires U2 — the actual M4 disaster, surfaced in week 1 with a 30-line stub.)
 
-M2+ then build on a known-working integration: capture a rule (M2), serve all queries (M3), refactor the FE picker (M4), assignments (M5), evaluation (M6), filter parity (M7). Each milestone takes a slice known to work end-to-end and extends it.
+M2+ then build on a known-working integration: capture a rule (M2), serve all queries (M3), refactor the frontend picker (M4), assignments (M5), evaluation (M6), filter parity (M7). Each milestone takes a slice known to work end-to-end and extends it.
 
 **Net cost of doing this right: ~1 extra task in M1.** Net benefit: every later milestone runs on retired-risk foundations.
 
@@ -186,26 +186,26 @@ The probe can return a stubbed "hello world", an expected failure with a known s
 
 **How to spot a milestone that needs this rule:** ask "what new wire is this milestone activating for the first time?" If the answer names a service/API/auth surface that wasn't talking to ours before, the milestone needs an integration-probe first task.
 
-**Concrete failure case (T4.5 in mmm-clone, 2026-05-04):**
+**Concrete failure case (T4.5 in the api-clone project):**
 
-M4 connected DMM (Spring Boot) to a new local mmm-clone (Hono+Yoga) via `LOCAL_DQ` Spring profile. The original task split was:
+M4 connected the backend (Spring Boot) to a new local clone (a small Node GraphQL server) via a local Spring profile. The original task split was:
 
-- T4.1: Add `LOCAL_DQ` profile config
-- T4.2: Investigate `mmm.enabled=true` side-effects
-- T4.3: Investigate `MetadataManager` and `DqConfigurationSync` boot dependencies
-- T4.4: Build FE rule-picker modal in `apps/one-data`
+- T4.1: Add the local profile config
+- T4.2: Investigate `upstream.enabled=true` side-effects
+- T4.3: Investigate two boot-time services' startup dependencies
+- T4.4: Build the frontend rule-picker modal in the web app
 - T4.5: Manual smoke — open the picker, see seeded rules
 
-Each task was small and well-shaped individually. The architecture risk was concentrated at T4.5: did DMM's outbound auth work locally? Did the Docker image actually run current code? Did Spring profile property overrides resolve correctly? **All three had to work for T4.5 to demo.** None had been exercised before T4.5. When T4.5 ran, all three failed simultaneously and the milestone hit a wall after 4 tasks of preparatory work.
+Each task was small and well-shaped individually. The architecture risk was concentrated at T4.5: did the backend's outbound auth work locally? Did the Docker image actually run current code? Did Spring profile property overrides resolve correctly? **All three had to work for T4.5 to demo.** None had been exercised before T4.5. When T4.5 ran, all three failed simultaneously and the milestone hit a wall after 4 tasks of preparatory work.
 
 The correct shape was a tracer bullet first:
 
-- **M4.0 (new): "Boot DMM with `LOCAL_DQ` profile against the clone and confirm a single GraphQL request reaches the clone (any response — empty list, stub, even a known-status error)."** This would have surfaced (a) stale Docker image reuse, (b) K8s SA token unavailability, (c) Spring profile property override quirk — all within 30–60 minutes, before any FE work.
-- M4.1+: T4.1 profile, T4.2/T4.3 investigations, T4.4 FE — each layering on a known-working integration.
+- **M4.0 (new): "Boot the backend with the local profile against the clone and confirm a single GraphQL request reaches the clone (any response — empty list, stub, even a known-status error)."** This would have surfaced (a) stale Docker image reuse, (b) Kubernetes SA token unavailability on macOS, (c) Spring profile property override quirk — all within 30–60 minutes, before any frontend work.
+- M4.1+: T4.1 profile, T4.2/T4.3 investigations, T4.4 frontend — each layering on a known-working integration.
 
 The price of skipping the M4.0 probe: 4 tasks of work (~10 hours) committed before the auth blocker surfaced, then a debugging detour, then folding the fix back into T4.5 retroactively. The probe would have been the cheapest task in the milestone.
 
-**Concrete success case (M1 in mmm-clone):** T1.2 ("run first authenticated `getRule` learning test against live MMM") was correctly designed as a tracer bullet — it integrated everything new (auth, GraphQL transport, response shape) in one task before any clone-side resolver work. M1 worked. The principle was applied to M1 but not propagated to M4.
+**Concrete success case (M1 in the same project):** T1.2 ("run first authenticated `getRule` learning test against the live upstream API") was correctly designed as a tracer bullet — it integrated everything new (auth, GraphQL transport, response shape) in one task before any clone-side resolver work. M1 worked. The principle was applied to M1 but not propagated to M4.
 
 **Apply this rule at task-creation time** by asking: "what new wire does this milestone activate? what's the cheapest end-to-end probe of it?" If you can't write that probe as the first task, the milestone is missing its tracer bullet.
 
@@ -249,7 +249,7 @@ This catches infrastructure-only tasks that should be folded into the slice they
 
 #### F. Define jargon in the Goal
 
-When a task title uses domain jargon (e.g., "DSL parser," "TCS mock-mode override"), the **Goal sentence MUST define the jargon in one plain-language clause**. A reviewer should not need to read prior context to understand the task. If the Goal can't accommodate the definition without becoming two sentences, the task title is too dense — rename.
+When a task title uses domain jargon (e.g., "DSL parser," "mock-mode override"), the **Goal sentence MUST define the jargon in one plain-language clause**. A reviewer should not need to read prior context to understand the task. If the Goal can't accommodate the definition without becoming two sentences, the task title is too dense — rename.
 
 #### G. Order tasks by demo unlock, not completeness
 
@@ -272,7 +272,7 @@ Group tasks into milestones. Each milestone = one mergeable MR. Each milestone:
 
 Why this is non-negotiable:
 
-- **It's how the work is actually run and merged.** Each milestone is one MR in one repo. The agent harness (sandcastle) runs **one repo at a time** — a BE run only picks BE tasks, an FE run only picks FE tasks. A mixed milestone cannot be driven or merged cleanly by either.
+- **It's how the work is actually run and merged.** Each milestone is one MR in one repo. The agent harness runs **one repo at a time** — a BE run only picks BE tasks, an FE run only picks FE tasks. A mixed milestone cannot be driven or merged cleanly by either.
 - **The FE↔BE contract is the integration boundary — i.e. the risk** (Principle 0). Keeping repos in separate milestones forces the contract to be an explicit, testable hand-off instead of an implicit assumption. (A real shipped bug: an FE that queried fields a BE never served, because both lived in one "milestone" and nobody tested the seam end-to-end.)
 
 How to split a cross-repo feature:
@@ -363,7 +363,7 @@ After `tasks.md` is written and approved, **ask the user whether to sync the bre
 - **A milestone whose "Demo:" reads "passing tests" or "infrastructure exists"** — except for the very first tracer-bullet milestone, milestones must demo a behavior. Re-slice or fold into the next milestone.
 - **Five-task first slice** — fail-fast pressure dictates 1–2 tasks for the very first slice. Apply principle B.
 - **No tracer bullet at the start of an integration milestone** — even if M1's tracer bullet was correct, every later milestone that introduces a new external boundary (new service hop, new auth surface, new infra dependency) needs its own tracer bullet as task 1. Apply principle B.1. Concentrating integration risk at the END of the milestone (e.g. via a "manual smoke" final task) means N-1 tasks of preparatory work before architecture is validated.
-- **Build-up milestone ordering when there are co-equal unknowns** — sequencing milestones by the dependency tree ("foundation → walls → roof") feels natural but defers risk to the end. If two or more hypotheses are co-equal at high uncertainty × cost, schedule them as parallel-or-sequential probes in M1, not at opposite ends of the project. Apply principle 0. The `mmm-clone` example: live-MMM contract (U1) AND DMM-with-`LOCAL_DQ`-reaches-an-HTTP-service-we-control (U2) were both high-risk; only U1 was probed in M1, U2 was deferred to M4 and surfaced three independent failures simultaneously.
+- **Build-up milestone ordering when there are co-equal unknowns** — sequencing milestones by the dependency tree ("foundation → walls → roof") feels natural but defers risk to the end. If two or more hypotheses are co-equal at high uncertainty × cost, schedule them as parallel-or-sequential probes in M1, not at opposite ends of the project. Apply principle 0. The api-clone example: the live-upstream contract (U1) AND backend-reaches-an-HTTP-service-we-control (U2) were both high-risk; only U1 was probed in M1, U2 was deferred to M4 and surfaced three independent failures simultaneously.
 - **Confusing "biggest scope" with "biggest unknown"** — a milestone with a lot of scaffolding is not the same as a milestone with a lot of risk. Scaffolding is volume; uncertainty is the chance the design holds up under reality. Schedule by uncertainty, not by volume.
 - **Jargon in task title with no plain-language definition in the Goal** — apply principle F.
 - **Investigation tasks not producing an artifact** — spikes that don't run code must produce `findings.md` or a decision note so they're independently mergeable.

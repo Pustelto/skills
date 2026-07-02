@@ -2,40 +2,38 @@
 
 set -euo pipefail
 
+# Lightweight setup for the skills repo:
+#   1. Record where your tasks-vault lives (the config the bundled
+#      omt-scaffold-feature/bin/bootstrap-task reads).
+#   2. Create that vault directory.
+#   3. Optionally symlink the skills into ~/.claude/skills for Claude Code.
+#
+# Templates are NOT copied anywhere — each skill bundles its own templates
+# (see omt-scaffold-feature/templates/), so there is a single source of truth.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONFIG_FILE="$HOME/.omt.config"
+CONFIG_FILE="${OMT_CONFIG_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omt/config}"
 DEFAULT_VAULT="$HOME/omt-tasks"
 
 printf '=== OMT Skills Setup ===\n\n'
 
-# --- 1. Tasks vault ---
+# --- 1. Tasks vault path ---
 
-VAULT_DIR="$DEFAULT_VAULT"
+EXISTING_VAULT=""
 if [[ -f "$CONFIG_FILE" ]]; then
-  EXISTING_VAULT="$(head -1 "$CONFIG_FILE")"
-  printf 'Existing config found: %s → %s\n' "$CONFIG_FILE" "$EXISTING_VAULT"
-  printf 'Keep this path? [Y/n]: ' >&2
-  read -r answer
-  answer="${answer:-Y}"
-  if [[ "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" == "y" || "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" == "yes" ]]; then
-    VAULT_DIR="$EXISTING_VAULT"
-  else
-    printf 'Tasks vault path [%s]: ' "$DEFAULT_VAULT" >&2
-    read -r answer
-    VAULT_DIR="${answer:-$DEFAULT_VAULT}"
-  fi
-else
-  printf 'Tasks vault path [%s]: ' "$DEFAULT_VAULT" >&2
-  read -r answer
-  VAULT_DIR="${answer:-$DEFAULT_VAULT}"
+  EXISTING_VAULT="$(sed -n 's/^[[:space:]]*vault[[:space:]]*=[[:space:]]*//p' "$CONFIG_FILE" | head -n1)"
 fi
 
-# Expand ~ if present
+DEFAULT_ANSWER="${EXISTING_VAULT:-$DEFAULT_VAULT}"
+printf 'Tasks vault path [%s]: ' "$DEFAULT_ANSWER" >&2
+read -r answer
+VAULT_DIR="${answer:-$DEFAULT_ANSWER}"
 VAULT_DIR="${VAULT_DIR/#\~/$HOME}"
 
-printf '%s\n' "$VAULT_DIR" > "$CONFIG_FILE"
-printf 'Config written: %s → %s\n' "$CONFIG_FILE" "$VAULT_DIR"
+mkdir -p "$(dirname "$CONFIG_FILE")"
+printf 'vault=%s\n' "$VAULT_DIR" > "$CONFIG_FILE"
+printf 'Config written: %s → vault=%s\n' "$CONFIG_FILE" "$VAULT_DIR"
 
 # --- 2. Create vault directory ---
 
@@ -46,17 +44,7 @@ else
   printf 'Vault exists:  %s\n' "$VAULT_DIR"
 fi
 
-# --- 3. Copy default templates ---
-
-if [[ ! -d "$VAULT_DIR/_templates" ]]; then
-  cp -r "$SKILLS_REPO_DIR/templates" "$VAULT_DIR/_templates"
-  printf 'Copied default templates to %s/_templates/\n' "$VAULT_DIR"
-else
-  printf 'Templates exist: %s/_templates/ (skipped)\n' "$VAULT_DIR"
-  printf '  To reset defaults: rm -rf "%s/_templates" && rerun setup\n' "$VAULT_DIR"
-fi
-
-# --- 4. Claude Code skill symlinks ---
+# --- 3. Claude Code skill symlinks (optional) ---
 
 printf '\n--- Claude Code Integration ---\n'
 
@@ -111,5 +99,5 @@ printf 'Skills repo:  %s\n' "$SKILLS_REPO_DIR"
 printf 'Config:       %s\n' "$CONFIG_FILE"
 printf '\nNext steps:\n'
 printf '  1. In your project repo, run: /omt-scaffold-feature\n'
-printf '  2. Or directly: %s/bin/bootstrap-task --name "my feature"\n' "$SKILLS_REPO_DIR"
+printf '  2. Or directly: %s/omt-scaffold-feature/bin/bootstrap-task --name "my feature"\n' "$SKILLS_REPO_DIR"
 printf '\nFor non-Claude agents, use the SKILL.md files as workflow instructions.\n'
