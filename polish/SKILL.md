@@ -14,7 +14,6 @@ else. Polish is not a review, not a refactor, and not a bug hunt. Report anythin
 
 Related skills:
 
-- `code-comments` tells you how to write a comment in the first place.
 - `create-mr` runs the quality gate, commits, pushes, and creates the merge request.
 - `fix-review` addresses review threads.
 
